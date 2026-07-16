@@ -160,6 +160,8 @@ export function elementAbbr(element: number): string {
 export interface MatchGroup {
   element: number;
   size: number;
+  /** How many gems in this group are "enhanced" (+50% power each). */
+  enhancedCount?: number;
 }
 
 /**
@@ -205,8 +207,11 @@ export function computeGroupBaseDamage(
     .filter((c) => c.element === group.element)
     .reduce((sum, c) => sum + c.attack, 0);
   if (attack === 0) return 0;
+  // Enhanced gems add +50% power each to the attack*size factor; the
+  // group-size bonus below still uses the group's real (unenhanced) size.
+  const effectiveSize = group.size + 0.5 * (group.enhancedCount ?? 0);
   return (
-    attack * group.size * elementMultiplier(group.element, targetElement) * groupSizeMultiplier(group.size)
+    attack * effectiveSize * elementMultiplier(group.element, targetElement) * groupSizeMultiplier(group.size)
   );
 }
 
@@ -259,9 +264,10 @@ export function computeHealAmount(
   relicMods?: RelicModifiers,
 ): number {
   let total = 0;
-  for (const { element, size } of groups) {
-    if (element !== HEART_TYPE) continue;
-    total += size * HEAL_PER_GEM * groupSizeMultiplier(size);
+  for (const group of groups) {
+    if (group.element !== HEART_TYPE) continue;
+    const effectiveSize = group.size + 0.5 * (group.enhancedCount ?? 0);
+    total += effectiveSize * HEAL_PER_GEM * groupSizeMultiplier(group.size);
   }
   return Math.round(total * comboMultiplier(combo) * (relicMods?.healMultiplier ?? 1));
 }

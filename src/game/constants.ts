@@ -29,6 +29,18 @@ export const HEAL_PER_GEM = 20;
 
 export const EMPTY = -1;
 
+// Grid value for a petrified cell (enemy "petrify" skill). Stones are cell-
+// fixed: they block gravity, can't be picked up/displaced, and never match.
+export const STONE = -2;
+
+// Player HP lost per burning cell each time BattleState.tickEnemyTurn causes
+// GameScene to tick the board's burning state (enemy "ignite" skill).
+export const BURN_DAMAGE_PER_CELL = 6;
+
+// Chance (0-1) that a freshly spawned gem (gravity refill) is "enhanced"
+// (+50% power, see game/team.ts's computeGroupBaseDamage/computeHealAmount).
+export const ENHANCED_SPAWN_CHANCE = 0.06;
+
 // Battle tuning: the delay before the enemy retaliates after the player's
 // cascade finishes resolving. Damage itself comes from each team member's
 // attack stat (see game/team.ts), scaled by matched gem count and combo.

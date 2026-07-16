@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PlayerData } from './playerData';
-import { isLevelUnlocked, recordLevelClear, starsForClear } from './playerData';
+import { isLevelUnlocked, recordLevelClear, starsForClear, starsForLevel } from './playerData';
 
 function makeData(levelStars: number[] = []): PlayerData {
   return { currency: 0, owned: [], activeTeamIds: [], levelStars };
@@ -20,6 +20,36 @@ describe('starsForClear', () => {
   it('gives 1 star below 35%', () => {
     expect(starsForClear(0.1)).toBe(1);
     expect(starsForClear(0)).toBe(1);
+  });
+});
+
+describe('starsForLevel', () => {
+  it('delegates to starsForClear (hpRatio rule) when criteria is undefined', () => {
+    expect(starsForLevel(undefined, { hpRatio: 1, turnsUsed: 999 })).toBe(3);
+    expect(starsForLevel(undefined, { hpRatio: 0.5, turnsUsed: 1 })).toBe(2);
+    expect(starsForLevel(undefined, { hpRatio: 0, turnsUsed: 1 })).toBe(1);
+  });
+
+  it('delegates to starsForClear when criteria is explicitly {type: "hpRatio"}', () => {
+    expect(starsForLevel({ type: 'hpRatio' }, { hpRatio: 0.8, turnsUsed: 50 })).toBe(3);
+    expect(starsForLevel({ type: 'hpRatio' }, { hpRatio: 0.2, turnsUsed: 1 })).toBe(1);
+  });
+
+  it('gives 3 stars for a "turns" criteria when turnsUsed is at or under threeStar', () => {
+    const criteria = { type: 'turns' as const, threeStar: 10, twoStar: 15 };
+    expect(starsForLevel(criteria, { hpRatio: 0, turnsUsed: 5 })).toBe(3);
+    expect(starsForLevel(criteria, { hpRatio: 0, turnsUsed: 10 })).toBe(3);
+  });
+
+  it('gives 2 stars for a "turns" criteria between threeStar and twoStar', () => {
+    const criteria = { type: 'turns' as const, threeStar: 10, twoStar: 15 };
+    expect(starsForLevel(criteria, { hpRatio: 0, turnsUsed: 11 })).toBe(2);
+    expect(starsForLevel(criteria, { hpRatio: 0, turnsUsed: 15 })).toBe(2);
+  });
+
+  it('gives 1 star for a "turns" criteria beyond twoStar, regardless of hpRatio', () => {
+    const criteria = { type: 'turns' as const, threeStar: 10, twoStar: 15 };
+    expect(starsForLevel(criteria, { hpRatio: 1, turnsUsed: 16 })).toBe(1);
   });
 });
 

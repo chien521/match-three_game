@@ -132,7 +132,7 @@ export class LevelSelectScene extends Phaser.Scene {
       const unlocked = isLevelUnlocked(data, levelIndex);
       const stars = data.levelStars[levelIndex] ?? 0;
       const isFrontier = unlocked && stars === 0;
-      const isBossLevel = level.some((e) => e.boss);
+      const isBossLevel = level.enemies.some((e) => e.boss);
 
       const nodeRadius = isBossLevel ? 34 : 28;
 
@@ -154,7 +154,7 @@ export class LevelSelectScene extends Phaser.Scene {
         .circle(x, y, nodeRadius, unlocked ? 0x2a2f45 : 0x1a1d29)
         .setStrokeStyle(3, unlocked ? lighten(theme.ambient, 0.1) : 0x2a2f45);
 
-      const representative = level[level.length - 1];
+      const representative = level.enemies[level.enemies.length - 1];
       const icon = this.add
         .text(x, y, unlocked ? enemyEmoji(representative.name) : '🔒', {
           fontSize: isBossLevel ? '30px' : '24px',
@@ -170,6 +170,22 @@ export class LevelSelectScene extends Phaser.Scene {
           fontStyle: 'bold',
         })
         .setOrigin(0.5);
+
+      // Tiny rule badges (turn limit / restricted gem colors / move-time
+      // override), stacked in the node's opposite top corner from the
+      // level-number badge.
+      const ruleGlyphs: string[] = [];
+      if (level.rules?.turnLimit !== undefined) ruleGlyphs.push('⏱');
+      if (level.rules?.gemColors !== undefined) ruleGlyphs.push('🎨');
+      if (level.rules?.moveTimeMs !== undefined) ruleGlyphs.push('⚡');
+      const ruleBadge =
+        ruleGlyphs.length > 0
+          ? this.add
+              .text(x + nodeRadius - 4, y - nodeRadius + 4, ruleGlyphs.join(''), {
+                fontSize: '13px',
+              })
+              .setOrigin(1, 0.5)
+          : null;
 
       // Name + stars sit beside the node (below would collide with the next node).
       const side = x > 400 ? -1 : 1;
@@ -191,7 +207,7 @@ export class LevelSelectScene extends Phaser.Scene {
         .setOrigin(originX, 0.5);
 
       if (!unlocked) {
-        [circle, icon, badge, badgeText, starsLabel, nameLabel].forEach((obj) => obj.setAlpha(0.5));
+        [circle, icon, badge, badgeText, starsLabel, nameLabel, ruleBadge].forEach((obj) => obj?.setAlpha(0.5));
         return;
       }
 

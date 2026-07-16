@@ -1,6 +1,7 @@
 import { DEFAULT_TEAM } from './team';
 import type { Character } from './team';
 import { findCharacterTemplate } from './characterPool';
+import type { StarCriteria } from './levels';
 
 const STORAGE_KEY = 'match3-player-data';
 const STARTING_CURRENCY = 20;
@@ -67,6 +68,22 @@ export function addCurrency(data: PlayerData, amount: number): PlayerData {
 export function starsForClear(hpRatio: number): number {
   if (hpRatio >= 0.7) return 3;
   if (hpRatio >= 0.35) return 2;
+  return 1;
+}
+
+/**
+ * Star rating for clearing a story level under its configured criteria:
+ * undefined or `{type:'hpRatio'}` delegates to the existing remaining-HP
+ * rule (starsForClear); `{type:'turns'}` instead rewards finishing within a
+ * turn budget (fewer turns used = more stars).
+ */
+export function starsForLevel(
+  criteria: StarCriteria | undefined,
+  r: { hpRatio: number; turnsUsed: number },
+): number {
+  if (!criteria || criteria.type === 'hpRatio') return starsForClear(r.hpRatio);
+  if (r.turnsUsed <= criteria.threeStar) return 3;
+  if (r.turnsUsed <= criteria.twoStar) return 2;
   return 1;
 }
 

@@ -69,8 +69,19 @@ export function drawThemedBackground(scene: Phaser.Scene, theme: BattleTheme): v
 // Spark bursts & projectiles (tween-based "particles")
 // ---------------------------------------------------------------------------
 
-/** Explodes a small spray of element-colored sparks at a point. */
-export function burstAt(scene: Phaser.Scene, x: number, y: number, element: number, count = 7): void {
+/**
+ * Explodes a small spray of element-colored sparks at a point. Pass `tint`
+ * to recolor the sparks (e.g. gray for a shattering stone) instead of using
+ * the element's natural color.
+ */
+export function burstAt(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  element: number,
+  count = 7,
+  tint?: number,
+): void {
   const key = sparkKeyFor(element);
   for (let i = 0; i < count; i++) {
     const angle = Math.random() * Math.PI * 2;
@@ -80,6 +91,7 @@ export function burstAt(scene: Phaser.Scene, x: number, y: number, element: numb
       .setScale(0.7 + Math.random() * 0.7)
       .setDepth(140)
       .setBlendMode(Phaser.BlendModes.ADD);
+    if (tint !== undefined) spark.setTint(tint);
     scene.tweens.add({
       targets: spark,
       x: x + Math.cos(angle) * speed,

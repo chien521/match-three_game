@@ -3,6 +3,7 @@ import { Board } from '../game/Board';
 import type { Vec2 } from '../game/Board';
 import { BattleState } from '../game/BattleState';
 import { LEVEL_NAMES, LEVEL_STORY } from '../game/levels';
+import type { LevelConfig } from '../game/levels';
 import {
   CURRENCY_GAME_CLEAR_BONUS,
   CURRENCY_PER_ENEMY_DEFEAT,
@@ -34,9 +35,11 @@ import {
   BOARD_COLS,
   BOARD_MARGIN,
   BOARD_ROWS,
+  BURN_DAMAGE_PER_CELL,
   ENEMY_ATTACK_DELAY_MS,
   GEM_COLORS,
   HEART_TYPE,
+  STONE,
   TILE_SIZE,
   TURN_TIME_MS,
 } from '../game/constants';
@@ -52,7 +55,7 @@ import {
   themeForChapter,
 } from './battleFx';
 import type { BattleTheme } from './battleFx';
-import { recordLevelClear, starsForClear } from '../game/playerData';
+import { recordLevelClear, starsForLevel } from '../game/playerData';
 import { LEVELS } from '../game/levels';
 import { drawAvatar } from './avatarUi';
 
@@ -72,6 +75,8 @@ const ENEMY_SPRITE_Y = 176;
 export class GameScene extends Phaser.Scene {
   private board!: Board;
   private gems: (Phaser.GameObjects.Image | undefined)[][] = [];
+  /** Burning-cell glow underlays, keyed by "row,col" (fixed to the cell, not the gem). */
+  private burningUnderlays: Map<string, Phaser.GameObjects.Image> = new Map();
 
   private boardOriginX = 0;
   private boardOriginY = 0;
@@ -94,6 +99,7 @@ export class GameScene extends Phaser.Scene {
 
   private enemyNameText!: Phaser.GameObjects.Text;
   private enemyStatusText!: Phaser.GameObjects.Text;
+  private turnCounterText!: Phaser.GameObjects.Text;
   private enemyHpBarFill!: Phaser.GameObjects.Graphics;
   private enemyHpText!: Phaser.GameObjects.Text;
   private enemyHpBarX = 0;
@@ -101,6 +107,7 @@ export class GameScene extends Phaser.Scene {
 
   private playerHpBarFill!: Phaser.GameObjects.Graphics;
   private playerHpText!: Phaser.GameObjects.Text;
+  private playerStatusText!: Phaser.GameObjects.Text;
   private playerHpBarX = 0;
   private playerHpBarY = 0;
   private rosterTexts: Phaser.GameObjects.Text[] = [];
@@ -108,6 +115,10 @@ export class GameScene extends Phaser.Scene {
   private rosterAvatars: Phaser.GameObjects.Container[] = [];
 
   private startLevelIndex = 0;
+  /** The story LevelConfig being played (null in run mode). */
+  private currentLevel: LevelConfig | null = null;
+  /** Restricted gem-type palette for this level's board (undefined = all types). */
+  private gemColors?: number[];
 
   /** True when this battle belongs to a roguelike run (see game/run.ts). */
   private runMode = false;
@@ -138,6 +149,7 @@ export class GameScene extends Phaser.Scene {
     this.gameEnded = false;
     this.storyDismissed = false;
     this.score = 0;
+    this.burningUnderlays = new Map();
 
     const boardPixelWidth = BOARD_COLS * TILE_SIZE;
     const boardPixelHeight = BOARD_ROWS * TILE_SIZE;
@@ -153,8 +165,11 @@ export class GameScene extends Phaser.Scene {
 
     this.drawBoardBackground(boardPixelWidth, boardPixelHeight);
 
+    this.currentLevel = this.runMode ? null : LEVELS[this.startLevelIndex] ?? null;
+    this.gemColors = this.currentLevel?.rules?.gemColors;
+
     this.board = new Board(BOARD_COLS, BOARD_ROWS);
-    this.board.fillRandomNoMatches();
+    this.board.fillRandomNoMatches(undefined, this.gemColors);
     this.buildSprites();
 
     this.scoreText = this.add.text(BOARD_MARGIN, BOARD_MARGIN, 'Score: 0', {
@@ -184,9 +199,11 @@ export class GameScene extends Phaser.Scene {
     } else {
       this.runMode = false;
       this.relicMods = null;
-      this.turnTimeMs = TURN_TIME_MS;
+      this.turnTimeMs = this.currentLevel?.rules?.moveTimeMs ?? TURN_TIME_MS;
       const playerData = loadPlayerData();
-      this.battle = new BattleState(this.startLevelIndex, getActiveTeam(playerData));
+      this.battle = new BattleState(this.startLevelIndex, getActiveTeam(playerData), {
+        rules: this.currentLevel?.rules,
+      });
     }
     this.enemySprite = new EnemySprite(this, this.scale.width / 2, ENEMY_SPRITE_Y);
     this.createHpBars();
@@ -363,6 +380,15 @@ export class GameScene extends Phaser.Scene {
       })
       .setOrigin(0.5, 0);
 
+    this.turnCounterText = this.add
+      .text(this.scale.width / 2, this.enemyHpBarY + HP_BAR_HEIGHT + 22, '', {
+        fontSize: '13px',
+        color: '#9aa3c7',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5, 0)
+      .setVisible(false);
+
     // Player HP bar sits below the board (no title — the bar itself is clear).
     this.playerHpBarX = (this.scale.width - HP_BAR_WIDTH) / 2;
     this.playerHpBarY = this.boardOriginY + BOARD_ROWS * TILE_SIZE + 16;
@@ -384,6 +410,14 @@ export class GameScene extends Phaser.Scene {
         color: '#ffffff',
       })
       .setOrigin(0.5);
+
+    this.playerStatusText = this.add
+      .text(this.scale.width / 2, this.playerHpBarY - 12, '', {
+        fontSize: '13px',
+        color: '#c9a8ff',
+      })
+      .setOrigin(0.5)
+      .setVisible(false);
 
     const rosterY = this.playerHpBarY + HP_BAR_HEIGHT + 10;
     const rosterWidth = this.scale.width - BOARD_MARGIN * 2;
@@ -475,15 +509,31 @@ export class GameScene extends Phaser.Scene {
     this.enemyHpText.setText(`${this.battle.enemy.hp} / ${this.battle.enemy.maxHp}`);
 
     const enemy = this.battle.enemy;
-    const status: string[] = [`ATK in ${enemy.attackCountdown}`];
+    const countdown = enemy.chargeTurns > 0 ? enemy.chargeCountdown : enemy.attackCountdown;
+    const status: string[] = [enemy.chargeTurns > 0 ? `⚡ BIG ATK in ${countdown}` : `ATK in ${countdown}`];
     if (enemy.shieldTurns > 0) {
       status.push(`🛡 -${Math.round(enemy.shieldReduction * 100)}% dmg (${enemy.shieldTurns})`);
     }
     if (enemy.lockCountOnAttack > 0) {
       status.push(`🔒 locks ${enemy.lockCountOnAttack} gems on attack`);
     }
+    if (enemy.enraged) {
+      status.push('😡 ENRAGED');
+    }
+    if (enemy.selfHealAmount > 0) {
+      status.push(`💚 +${enemy.selfHealAmount}/${enemy.selfHealEveryTurns}t`);
+    }
     this.enemyStatusText.setText(status.join('    '));
-    this.enemyStatusText.setColor(enemy.attackCountdown <= 1 ? '#ff7b7b' : '#9aa3c7');
+    this.enemyStatusText.setColor(countdown <= 1 ? '#ff7b7b' : '#9aa3c7');
+
+    if (this.battle.turnLimit !== undefined) {
+      const remaining = this.battle.turnLimit - this.battle.turnCount;
+      this.turnCounterText.setText(`⏱ Turn ${this.battle.turnCount}/${this.battle.turnLimit}`);
+      this.turnCounterText.setColor(remaining <= 3 ? '#ff5555' : '#9aa3c7');
+      this.turnCounterText.setVisible(true);
+    } else {
+      this.turnCounterText.setVisible(false);
+    }
 
     const playerRatio = this.battle.playerHp / this.battle.playerMaxHp;
     this.playerHpBarFill.clear();
@@ -495,8 +545,15 @@ export class GameScene extends Phaser.Scene {
       HP_BAR_HEIGHT,
     );
     this.playerHpText.setText(`${this.battle.playerHp} / ${this.battle.playerMaxHp}`);
+    if (this.battle.poisonTurnsLeft > 0) {
+      this.playerStatusText.setText(`☠ ${this.battle.poisonDamagePerTurn} (${this.battle.poisonTurnsLeft} turns)`);
+      this.playerStatusText.setVisible(true);
+    } else {
+      this.playerStatusText.setVisible(false);
+    }
     this.refreshRoster();
   }
+
 
   private refreshRoster(): void {
     this.battle.team.forEach((character, index) => {
@@ -564,11 +621,44 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /** Picks the gem texture variant for a cell: bomb takes priority over enhanced. */
+  private gemTextureKey(row: number, col: number, type: number): string {
+    if (this.board.isBomb(row, col)) return `gem-bomb-${type}`;
+    if (this.board.isEnhanced(row, col)) return `gem-enh-${type}`;
+    return `gem-${type}`;
+  }
+
   private createGemSprite(row: number, col: number, type: number): Phaser.GameObjects.Image {
     const { x, y } = this.cellToPixel(row, col);
-    const sprite = this.add.image(x, y, `gem-${type}`);
+    const sprite = this.add.image(x, y, this.gemTextureKey(row, col, type));
     sprite.setData('type', type);
+    sprite.setDepth(10);
     return sprite;
+  }
+
+  /** A petrified cell renders as an immovable stone in place of a gem. */
+  private createStoneSprite(row: number, col: number): Phaser.GameObjects.Image {
+    const { x, y } = this.cellToPixel(row, col);
+    const sprite = this.add.image(x, y, 'gem-stone');
+    sprite.setData('type', STONE);
+    sprite.setDepth(10);
+    return sprite;
+  }
+
+  /** Looping alpha-pulse glow rendered beneath the gem occupying a burning cell. */
+  private createBurningUnderlay(row: number, col: number): Phaser.GameObjects.Image {
+    const { x, y } = this.cellToPixel(row, col);
+    const underlay = this.add.image(x, y, 'cell-burning').setDepth(5);
+    this.burningUnderlays.set(`${row},${col}`, underlay);
+    this.tweens.add({
+      targets: underlay,
+      alpha: 0.45,
+      duration: 450,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+    return underlay;
   }
 
   // ---------------------------------------------------------------------
@@ -601,6 +691,7 @@ export class GameScene extends Phaser.Scene {
       const cell = this.pixelToCell(pointer.x, pointer.y);
       if (!this.isWithinBoard(pointer.x, pointer.y)) return;
       if (this.board.isLocked(cell.row, cell.col)) return; // locked gems can't be picked up
+      if (this.board.isPetrified(cell.row, cell.col)) return; // stones can't be picked up
       this.dragging = true;
       this.heldCell = cell;
       this.turnEndTime = this.time.now + this.turnTimeMs;
@@ -629,7 +720,8 @@ export class GameScene extends Phaser.Scene {
       if (
         (targetCell.row !== this.heldCell.row || targetCell.col !== this.heldCell.col) &&
         this.board.isNeighbor8(this.heldCell, targetCell) &&
-        !this.board.isLocked(targetCell.row, targetCell.col) // locked gems can't be displaced
+        !this.board.isLocked(targetCell.row, targetCell.col) && // locked gems can't be displaced
+        !this.board.isPetrified(targetCell.row, targetCell.col) // stones block the drag path like walls
       ) {
         this.swapHeldWith(targetCell);
       }
@@ -716,6 +808,42 @@ export class GameScene extends Phaser.Scene {
       if (matches.size === 0) break;
 
       const groups = this.board.groupMatches(matches);
+
+      // Bombs caught in this wave's matches explode before anything else
+      // clears; the blast may also swallow cells outside the matched groups.
+      const explosion = this.board.explodeBombs(matches);
+      const destroyedStoneKeys = new Set(explosion.destroyedStones.map(({ row, col }) => `${row},${col}`));
+
+      // Stones adjacent to anything cleared this wave (regular matches OR
+      // the blast) shatter too.
+      const allClearedCells = new Set<string>([...matches, ...explosion.blastCells]);
+      const adjacentShattered = this.board.destroyAdjacentStones(allClearedCells);
+
+      // Big (5+) matches leave a bomb behind at the cell nearest their
+      // centroid instead of being cleared — compute this before clearCells().
+      const bombSpawnCells = this.board.spawnBombsForGroups(groups);
+      const bombSpawnKeys = new Set(bombSpawnCells.map(({ row, col }) => `${row},${col}`));
+
+      // The blast's extra cleared cells (beyond the regular matched groups
+      // and any stones it shattered) become one synthetic "explosion" group
+      // worth +1 combo, flowing through the normal damage pipeline.
+      if (explosion.firstBombElement !== null) {
+        const extraCells: Vec2[] = [];
+        for (const key of explosion.blastCells) {
+          if (matches.has(key) || destroyedStoneKeys.has(key)) continue;
+          const [row, col] = key.split(',').map(Number);
+          extraCells.push({ row, col });
+        }
+        if (extraCells.length > 0) {
+          groups.push({
+            element: explosion.firstBombElement,
+            size: extraCells.length,
+            cells: extraCells,
+            enhancedCount: 0,
+          });
+        }
+      }
+
       allGroups.push(...groups);
       const combo = allGroups.length;
 
@@ -743,13 +871,52 @@ export class GameScene extends Phaser.Scene {
       this.pulseComboText(combo);
       this.spawnGroupDamageTexts(groups);
 
-      await this.playMatchClearAnimation(matches);
-      this.board.clearCells(matches);
+      // Cells that visually burst-and-clear this wave: regular matches
+      // (minus any that survived as a new bomb) plus the blast's extra gem
+      // cells (stones get a separate gray shatter effect below).
+      const cellsToBurst = new Set<string>();
+      for (const key of matches) {
+        if (!bombSpawnKeys.has(key)) cellsToBurst.add(key);
+      }
+      for (const key of explosion.blastCells) {
+        if (!destroyedStoneKeys.has(key) && !bombSpawnKeys.has(key)) cellsToBurst.add(key);
+      }
 
-      const { moves, spawns } = this.board.applyGravityAndRefill();
+      if (explosion.blastCells.size > 0) {
+        this.cameras.main.shake(120, 0.006); // bomb detonation
+      }
+
+      await this.playMatchClearAnimation(cellsToBurst);
+      const cellsToClear = new Set<string>();
+      for (const key of matches) {
+        if (!bombSpawnKeys.has(key)) cellsToClear.add(key);
+      }
+      this.board.clearCells(cellsToClear);
+
+      for (const cell of bombSpawnCells) {
+        const sprite = this.gems[cell.row][cell.col];
+        const type = this.board.get(cell.row, cell.col);
+        if (sprite) {
+          sprite.setTexture(this.gemTextureKey(cell.row, cell.col, type));
+          this.tweens.add({ targets: sprite, scale: 1.25, duration: 140, yoyo: true, ease: 'Quad.easeOut' });
+        }
+      }
+
+      const allShatteredStones = [...explosion.destroyedStones, ...adjacentShattered];
+      for (const { row, col } of allShatteredStones) {
+        const sprite = this.gems[row][col];
+        if (sprite) {
+          burstAt(this, sprite.x, sprite.y, 0, 8, 0x9aa3b2);
+          sprite.destroy();
+        }
+        this.gems[row][col] = undefined;
+      }
+
+      const { moves, spawns } = this.board.applyGravityAndRefill(undefined, { gemTypes: this.gemColors });
       await this.applyGravityToSprites(moves, spawns);
-      this.refreshLockVisuals(); // locks travel with falling gems
+      this.refreshCellStateVisuals(); // locks travel with falling gems; reconciles stones/burning too
     }
+
 
     const combo = allGroups.length;
     if (combo === 0) {
@@ -791,7 +958,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Spawns a floating "+N" damage number at each matched group's centroid, colored by its gem color. */
-  private spawnGroupDamageTexts(groups: { element: number; size: number; cells: Vec2[] }[]): void {
+  private spawnGroupDamageTexts(groups: (MatchGroup & { cells: Vec2[] })[]): void {
     for (const group of groups) {
       const amount = Math.round(
         computeGroupBaseDamage(group, this.battle.team, this.battle.enemy.element),
@@ -862,6 +1029,23 @@ export class GameScene extends Phaser.Scene {
     this.battle.tickCooldowns();
     this.refreshRoster();
 
+    // Burning cells (enemy "ignite" skill) tick once per completed player
+    // turn, independent of whether the turn scored a match.
+    const burningCells = this.board.tickBurning();
+    if (burningCells > 0) {
+      const burnDamage = burningCells * BURN_DAMAGE_PER_CELL;
+      this.battle.damagePlayer(burnDamage);
+      this.refreshHpBars();
+      this.spawnFloatingText(
+        this.playerHpBarX + HP_BAR_WIDTH / 2,
+        this.playerHpBarY - 8,
+        `-${burnDamage}`,
+        0xff6a00,
+        22,
+      );
+      this.refreshCellStateVisuals();
+    }
+
     if (totalHeal > 0) {
       this.battle.healPlayer(totalHeal);
       this.refreshHpBars();
@@ -906,9 +1090,39 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    // The enemy acts on its own countdown (attackInterval turns per attack).
+    // The enemy acts on its own countdown (attackInterval turns, or its
+    // charge cycle if it has one — see BattleState.tickEnemyTurn).
     const action = this.battle.tickEnemyTurn();
     this.refreshHpBars();
+
+    if (this.battle.isOutOfTurns()) {
+      this.endGame('Out of Turns');
+      return;
+    }
+
+    if (action.poisonDamage > 0) {
+      this.spawnFloatingText(
+        this.playerHpBarX + HP_BAR_WIDTH / 2,
+        this.playerHpBarY - 8,
+        `-${action.poisonDamage}`,
+        0x9b59b6,
+        20,
+      );
+    }
+
+    if (action.selfHealed > 0) {
+      this.spawnFloatingText(this.enemySprite.x, this.enemySprite.y - 44, `+${action.selfHealed}`, 0x2ecc71, 24);
+    }
+
+    if (action.becameEnraged) {
+      await showBanner(this, '😡 ENRAGED', 0xff5555);
+      if (this.gameEnded) return;
+    }
+
+    if (action.chargeInterrupted) {
+      this.spawnFloatingText(this.enemySprite.x, this.enemySprite.y - 60, 'Charge interrupted!', 0xffe066, 18);
+    }
+
     if (!action.attacks) return;
 
     await this.delay(ENEMY_ATTACK_DELAY_MS);
@@ -916,7 +1130,7 @@ export class GameScene extends Phaser.Scene {
     await this.enemySprite.lunge();
     if (this.gameEnded) return;
     const hpBeforeAttack = this.battle.playerHp;
-    const playerDefeated = this.battle.applyEnemyAttack();
+    const playerDefeated = this.battle.applyEnemyAttack(action.attackMultiplier);
     if (this.battle.playerHp < hpBeforeAttack) {
       this.flashBar(this.playerHpBarX, this.playerHpBarY, HP_BAR_WIDTH, HP_BAR_HEIGHT, 0xff3333);
       flashDangerEdges(this);
@@ -929,9 +1143,36 @@ export class GameScene extends Phaser.Scene {
         24,
       );
     }
+    if (action.convertsGems) {
+      const { from, to, count } = action.convertsGems;
+      const changed = this.board.convertRandomGems(from, to, count);
+      for (const { row, col } of changed) {
+        const sprite = this.gems[row][col];
+        if (!sprite) continue;
+        sprite.setTexture(`gem-${to}`);
+        sprite.setData('type', to);
+      }
+    }
+    if (action.petrifies > 0) {
+      this.board.petrifyRandomCells(action.petrifies);
+      this.refreshCellStateVisuals();
+    }
+    if (action.ignites) {
+      this.board.igniteRandomCells(action.ignites.count, action.ignites.durationTurns);
+      this.refreshCellStateVisuals();
+    }
+    if (action.appliesPoison) {
+      this.spawnFloatingText(
+        this.playerHpBarX + HP_BAR_WIDTH / 2,
+        this.playerHpBarY - 24,
+        '☠ Poisoned!',
+        0x9b59b6,
+        16,
+      );
+    }
     if (action.locksGems > 0) {
       this.board.lockRandomCells(action.locksGems);
-      this.refreshLockVisuals();
+      this.refreshCellStateVisuals();
     }
     this.refreshHpBars();
 
@@ -949,18 +1190,49 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  /** Grays out gems on locked cells; restores normal tint elsewhere. */
-  private refreshLockVisuals(): void {
+  /**
+   * Reconciles all cell-fixed visual state after gravity (or a board effect
+   * that doesn't already handle its own sprites): locked-gem tint, stone
+   * sprites standing in for petrified cells, and burning underlays.
+   */
+  private refreshCellStateVisuals(): void {
     for (let r = 0; r < BOARD_ROWS; r++) {
       for (let c = 0; c < BOARD_COLS; c++) {
-        const sprite = this.gems[r][c];
-        if (!sprite) continue;
-        if (this.board.isLocked(r, c)) {
-          sprite.setTint(0x8a8a8a);
-          sprite.setAlpha(0.85);
-        } else {
-          sprite.clearTint();
-          sprite.setAlpha(1);
+        const key = `${r},${c}`;
+        let sprite = this.gems[r][c];
+
+        if (this.board.isPetrified(r, c)) {
+          if (!sprite || sprite.getData('type') !== STONE) {
+            sprite?.destroy();
+            sprite = this.createStoneSprite(r, c);
+            this.gems[r][c] = sprite;
+          }
+        } else if (sprite && sprite.getData('type') === STONE) {
+          // Defensive: a stone that's no longer petrified shouldn't linger.
+          // destroyAdjacentStones() already removes its own sprites, so this
+          // normally never fires.
+          sprite.destroy();
+          this.gems[r][c] = undefined;
+          sprite = undefined;
+        }
+
+        if (sprite) {
+          if (this.board.isLocked(r, c)) {
+            sprite.setTint(0x8a8a8a);
+            sprite.setAlpha(0.85);
+          } else {
+            sprite.clearTint();
+            sprite.setAlpha(1);
+          }
+        }
+
+        const isBurning = this.board.isBurning(r, c);
+        const underlay = this.burningUnderlays.get(key);
+        if (isBurning && !underlay) {
+          this.createBurningUnderlay(r, c);
+        } else if (!isBurning && underlay) {
+          underlay.destroy();
+          this.burningUnderlays.delete(key);
         }
       }
     }
@@ -1010,12 +1282,15 @@ export class GameScene extends Phaser.Scene {
     await this.introduceEnemy();
   }
 
-  /** Story-mode level clear: stars by remaining HP, progress + currency, results panel. */
+  /** Story-mode level clear: stars by the level's star criteria, progress + currency, results panel. */
   private handleStoryVictory(): void {
     this.gameEnded = true;
 
     const hpRatio = this.battle.playerHp / this.battle.playerMaxHp;
-    const stars = starsForClear(hpRatio);
+    const stars = starsForLevel(this.currentLevel?.starCriteria, {
+      hpRatio,
+      turnsUsed: this.battle.turnCount,
+    });
     const isLastLevel = this.startLevelIndex === LEVELS.length - 1;
     const currencyEarned =
       CURRENCY_PER_LEVEL_CLEAR + (isLastLevel ? CURRENCY_GAME_CLEAR_BONUS : 0);

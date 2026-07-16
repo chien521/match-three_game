@@ -8,6 +8,10 @@
  * overlay from the scene instead).
  */
 const EMOJI_RULES: [RegExp, string][] = [
+  [/slime queen/i, '👑'],
+  [/goblin pyro/i, '🔥'],
+  [/goblin geomancer/i, '🪨'],
+  [/venom wyvern/i, '🐍'],
   [/dragon|wyvern|whelp/i, '🐉'],
   [/drake/i, '🐲'],
   [/bat/i, '🦇'],

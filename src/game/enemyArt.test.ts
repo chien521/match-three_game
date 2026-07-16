@@ -22,7 +22,7 @@ describe('enemyEmoji', () => {
 
   it('covers every story-campaign enemy with a non-default emoji', () => {
     for (const level of LEVELS) {
-      for (const enemy of level) {
+      for (const enemy of level.enemies) {
         expect(enemyEmoji(enemy.name)).not.toBe(DEFAULT_ENEMY_EMOJI);
       }
     }

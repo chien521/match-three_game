@@ -130,6 +130,23 @@ describe('computeMatchDamage', () => {
     // Below minCombo the leader bonus does not apply: 300 * x1 combo = 300.
     expect(computeMatchDamage([{ element: 0, size: 3 }], 1, [leaderCharacter], 3)).toBe(300);
   });
+
+  it('enhanced gems add +0.5 effective size each to the attack factor, but the group-size multiplier still uses the real size', () => {
+    // effectiveSize = 3 + 0.5*2 = 4; groupSizeMultiplier(3) = 1 (not 4's 1.25).
+    // 100 attack * 4 effectiveSize * elementMultiplier(Fire vs Light = 1) * 1 = 400.
+    const damage = computeMatchDamage(
+      [{ element: 0, size: 3, enhancedCount: 2 }],
+      1,
+      [fireCharacter],
+      3,
+    );
+    expect(damage).toBe(400);
+  });
+
+  it('a plain (unenhanced) group is unaffected — enhancedCount defaults to 0', () => {
+    const damage = computeMatchDamage([{ element: 0, size: 3, enhancedCount: 0 }], 1, [fireCharacter], 3);
+    expect(damage).toBe(300);
+  });
 });
 
 describe('computeHealAmount', () => {
@@ -146,5 +163,12 @@ describe('computeHealAmount', () => {
   it('scales healing by the combo multiplier', () => {
     // 3 hearts * 20 = 60 base; combo 2 => x1.25 = 75.
     expect(computeHealAmount([{ element: HEART_TYPE, size: 3 }, { element: 0, size: 3 }], 2)).toBe(75);
+  });
+
+  it('enhanced heart gems boost healing the same way damage is boosted', () => {
+    // effectiveSize = 3 + 0.5*2 = 4; groupSizeMultiplier(3) = 1.
+    // 4 * HEAL_PER_GEM(20) * combo(1) * groupBonus(1) = 80.
+    const heal = computeHealAmount([{ element: HEART_TYPE, size: 3, enhancedCount: 2 }], 1);
+    expect(heal).toBe(80);
   });
 });

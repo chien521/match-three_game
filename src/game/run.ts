@@ -1,4 +1,4 @@
-import type { EnemyConfig } from './levels';
+import type { EnemyConfig, EnemySkillConfig } from './levels';
 import type { Character } from './team';
 import { DEFAULT_TEAM, teamTotalHp } from './team';
 import { CHARACTER_POOL, findCharacterTemplate } from './characterPool';
@@ -415,7 +415,10 @@ const FLOOR_BOSSES: EnemyConfig[] = [
     attack: 34,
     element: 2,
     attackInterval: 2,
-    skill: { type: 'shield', damageReduction: 0.5, durationTurns: 3 },
+    skills: [
+      { type: 'shield', damageReduction: 0.5, durationTurns: 3 },
+      { type: 'selfHeal', amount: 60, everyTurns: 3 },
+    ],
     boss: true,
   },
   {
@@ -423,7 +426,10 @@ const FLOOR_BOSSES: EnemyConfig[] = [
     maxHp: 3300,
     attack: 30,
     element: 0,
-    skill: { type: 'lock', lockCount: 2 },
+    skills: [
+      { type: 'lock', lockCount: 2 },
+      { type: 'charge', chargeTurns: 3, multiplier: 2.5, interruptRatio: 0.15 },
+    ],
     boss: true,
   },
   {
@@ -432,7 +438,10 @@ const FLOOR_BOSSES: EnemyConfig[] = [
     attack: 74,
     element: 4,
     attackInterval: 2,
-    skill: { type: 'shield', damageReduction: 0.3, durationTurns: 4 },
+    skills: [
+      { type: 'shield', damageReduction: 0.3, durationTurns: 4 },
+      { type: 'ignite', count: 2, durationTurns: 2 },
+    ],
     boss: true,
   },
 ];
@@ -472,11 +481,24 @@ export function generateEncounter(
   if (node.type === 'elite') {
     const elite = grunt(1.8, 1.5);
     elite.name = `Elite ${elite.name}`;
-    elite.skill =
-      rng() < 0.5
-        ? { type: 'shield', damageReduction: 0.4, durationTurns: 3 }
-        : { type: 'lock', lockCount: 2 };
-    if (elite.skill.type === 'shield') elite.attackInterval = 2;
+
+    const roll = rng();
+    let skill: EnemySkillConfig;
+    if (roll < 0.2) {
+      skill = { type: 'shield', damageReduction: 0.4, durationTurns: 3 };
+      elite.attackInterval = 2;
+    } else if (roll < 0.4) {
+      skill = { type: 'lock', lockCount: 2 };
+    } else if (roll < 0.6) {
+      skill = { type: 'poison', damagePerTurn: Math.round(elite.attack * 0.5), durationTurns: 3 };
+    } else if (roll < 0.8) {
+      skill = { type: 'petrify', count: 2 };
+    } else {
+      skill = { type: 'ignite', count: 2, durationTurns: 2 };
+    }
+
+    elite.skills = [skill];
+    elite.skill = skill; // deprecated one-element alias, kept for backward compatibility
     return [elite];
   }
 

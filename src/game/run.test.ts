@@ -237,6 +237,32 @@ describe('generateEncounter', () => {
     expect(elite.name.startsWith('Elite ')).toBe(true);
   });
 
+  it('rolls all five elite skill types across the roll range, keeping skills[0] and skill in sync', () => {
+    const run = createRun();
+    const eliteNode = { id: 'x', type: 'elite' as const, row: 2, col: 0, next: [] };
+    const expected: Array<[number, string]> = [
+      [0.05, 'shield'],
+      [0.25, 'lock'],
+      [0.45, 'poison'],
+      [0.65, 'petrify'],
+      [0.85, 'ignite'],
+    ];
+    for (const [roll, type] of expected) {
+      // Two rng() calls happen before the skill roll (template pick + attackInterval unused here);
+      // seed the queue so the *second* call lands on our target roll.
+      const elite = generateEncounter(run, eliteNode, seqRng([0.1, roll]))[0];
+      expect(elite.skills?.[0].type).toBe(type);
+      expect(elite.skill).toEqual(elite.skills?.[0]);
+    }
+  });
+
+  it('boss encounters carry multiple skills via skills[]', () => {
+    const run = createRun();
+    const bossNode = run.map.nodes.find((n) => n.type === 'boss')!;
+    const boss = generateEncounter(run, bossNode)[0];
+    expect(boss.skills?.length).toBeGreaterThanOrEqual(2);
+  });
+
   it('scales enemy stats with floor depth', () => {
     const run0 = createRun();
     const run2 = createRun();
