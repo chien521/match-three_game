@@ -20,7 +20,7 @@ export interface BattleTheme {
   ambient: number;
 }
 
-/** One theme per story chapter / run floor: meadow, war camp, dragon lair. */
+/** One theme per run floor: meadow, war camp, dragon lair. */
 const THEMES: BattleTheme[] = [
   { top: 0x0d2b1c, bottom: 0x10131d, ambient: 0x2ecc71 },
   { top: 0x33190d, bottom: 0x10131d, ambient: 0xe67e22 },
@@ -29,6 +29,19 @@ const THEMES: BattleTheme[] = [
 
 export function themeForChapter(chapterIndex: number): BattleTheme {
   return THEMES[Math.max(0, Math.min(chapterIndex, THEMES.length - 1))];
+}
+
+/** Per-campaign-branch backdrops: fire=embers, water=deep sea, wood/prologue=meadow, final=dragon lair. */
+const BRANCH_THEMES: Record<string, BattleTheme> = {
+  prologue: THEMES[0],
+  fire: THEMES[1],
+  water: { top: 0x0b2338, bottom: 0x10131d, ambient: 0x3498db },
+  wood: THEMES[0],
+  final: THEMES[2],
+};
+
+export function themeForBranch(branchId: string | undefined): BattleTheme {
+  return (branchId && BRANCH_THEMES[branchId]) || THEMES[0];
 }
 
 /**

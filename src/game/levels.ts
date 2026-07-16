@@ -47,12 +47,6 @@ export interface EnemyConfig {
   boss?: boolean;
 }
 
-export interface ChapterInfo {
-  title: string;
-  /** Indices into LEVELS/LEVEL_NAMES/LEVEL_STORY that belong to this chapter. */
-  levelIndices: number[];
-}
-
 /**
  * Per-level board/turn rules layered on top of the default battle (all
  * optional — omitting a field keeps the default behavior).
@@ -72,30 +66,182 @@ export type StarCriteria =
   | { type: 'turns'; threeStar: number; twoStar: number };
 
 /**
- * Level structure: an ordered list of enemies to fight. Clearing the last
- * enemy in a level completes it and advances to the next level. Difficulty
- * is baked directly into each level's stats (no separate difficulty
- * multiplier) — the story campaign IS the difficulty curve.
+ * Level structure: an ordered list of enemies to fight. Levels form a graph,
+ * not a line — each level names the level ids that must be cleared before it
+ * unlocks (`unlockRequires`), which is what lets the campaign fan out into
+ * three parallel elemental branches after the prologue and converge again
+ * for the final chapter. Difficulty is baked directly into each level's
+ * stats — the campaign IS the difficulty curve.
  */
 export interface LevelConfig {
+  /** Stable id used for unlock requirements and star-progress storage. */
+  id: string;
   name: string;
   story: string;
   enemies: EnemyConfig[];
+  /** Level ids that must all be cleared before this level unlocks (empty = always open). */
+  unlockRequires: string[];
   /** Board/turn rules for this level; omit for the default battle. */
   rules?: LevelRules;
   /** Star-rating rule for clearing this level; omit for the default (remaining-HP) rule. */
   starCriteria?: StarCriteria;
 }
 
+/** A column of levels on the campaign map (prologue, one of the three elemental branches, or the final chapter). */
+export interface BranchInfo {
+  id: string;
+  title: string;
+  /** Dominant enemy element of the branch (undefined for the prologue/final chapter). */
+  element?: number;
+  /** Level ids in play order within the branch. */
+  levelIds: string[];
+  /** Map column: 'single' spans the center; left/center/right are the parallel branches. */
+  column: 'single' | 'left' | 'center' | 'right';
+}
+
 export const LEVELS: LevelConfig[] = [
-  // Chapter 1: The Slime Outbreak
+  // Prologue — shared tutorial levels, always the entry point.
   {
+    id: 'prologue-1',
+    name: 'Sleepy Slime Path',
+    story:
+      'A lone slime dozes on the road out of town — the gentlest possible start to a very bad month.',
+    enemies: [{ name: 'Slime', maxHp: 60, attack: 4, element: 2 }],
+    unlockRequires: [],
+  },
+  {
+    id: 'prologue-2',
+    name: "Warband's Warning",
+    story:
+      'A slime scout watches you from the treeline, biding its time — strike before its countdown reaches zero.',
+    enemies: [{ name: 'Slime Scout', maxHp: 80, attack: 6, element: 2, attackInterval: 2 }],
+    unlockRequires: ['prologue-1'],
+  },
+
+  // Fire branch — the Goblin Uprising.
+  {
+    id: 'fire-1',
+    name: 'Goblin Outpost',
+    story:
+      'Goblin war-drums echo from the burning hills to the west — one of three warbands rising at once.',
+    enemies: [
+      { name: 'Goblin', maxHp: 170, attack: 13, element: 0 },
+      {
+        name: 'Goblin Pyro',
+        maxHp: 160,
+        attack: 14,
+        element: 0,
+        attackInterval: 2,
+        skills: [{ type: 'ignite', count: 2, durationTurns: 3 }],
+      },
+    ],
+    unlockRequires: ['prologue-2'],
+  },
+  {
+    id: 'fire-2',
+    name: 'Goblin War Camp',
+    story: 'The goblin camp is larger than expected — and a geomancer channels the earth itself against you.',
+    enemies: [
+      { name: 'Goblin', maxHp: 180, attack: 14, element: 0 },
+      {
+        name: 'Goblin Geomancer',
+        maxHp: 200,
+        attack: 16,
+        element: 2,
+        attackInterval: 2,
+        skills: [{ type: 'petrify', count: 1 }],
+      },
+    ],
+    unlockRequires: ['fire-1'],
+    rules: { turnLimit: 18 },
+    starCriteria: { type: 'turns', threeStar: 12, twoStar: 15 },
+  },
+  {
+    id: 'fire-3',
+    name: 'Goblin Chief',
+    story: 'The Goblin Chief himself steps forward, wielding a blade forged from stolen village iron.',
+    enemies: [
+      {
+        name: 'Goblin Chief',
+        maxHp: 400,
+        attack: 20,
+        element: 0,
+        skills: [
+          { type: 'lock', lockCount: 2 },
+          { type: 'charge', chargeTurns: 3, multiplier: 3, interruptRatio: 0.15 },
+        ],
+        boss: true,
+      },
+    ],
+    unlockRequires: ['fire-2'],
+  },
+
+  // Water branch — the Drowned Tide.
+  {
+    id: 'water-1',
+    name: 'Tideway Naga',
+    story:
+      'Meanwhile, along the flooded coast, a naga scout laces the tidewater with venom — outlast the poison.',
+    enemies: [
+      {
+        name: 'Naga Scout',
+        maxHp: 190,
+        attack: 14,
+        element: 1,
+        skills: [{ type: 'poison', damagePerTurn: 5, durationTurns: 3 }],
+      },
+    ],
+    unlockRequires: ['prologue-2'],
+  },
+  {
+    id: 'water-2',
+    name: 'Coral Sentinel',
+    story: 'A warden of living coral bars the reef path, turning gems to stone with every crashing wave.',
+    enemies: [
+      {
+        name: 'Coral Warden',
+        maxHp: 210,
+        attack: 16,
+        element: 1,
+        attackInterval: 2,
+        skills: [{ type: 'petrify', count: 1 }],
+      },
+    ],
+    unlockRequires: ['water-1'],
+  },
+  {
+    id: 'water-3',
+    name: 'Leviathan Queen',
+    story:
+      'The queen of the drowned tide surfaces at last — she cannot burst you down, but her venom and healing will outlast the careless.',
+    enemies: [
+      {
+        name: 'Leviathan Queen',
+        maxHp: 420,
+        attack: 22,
+        element: 1,
+        skills: [
+          { type: 'shield', damageReduction: 0.4, durationTurns: 3 },
+          { type: 'selfHeal', amount: 40, everyTurns: 3 },
+          { type: 'poison', damagePerTurn: 8, durationTurns: 3 },
+        ],
+        boss: true,
+      },
+    ],
+    unlockRequires: ['water-2'],
+  },
+
+  // Wood branch — the Slime Outbreak.
+  {
+    id: 'wood-1',
     name: 'Slime Meadow',
     story:
       'Strange tremors shake the meadow at the edge of town. Slimes are massing in numbers no one has seen before.',
     enemies: [{ name: 'Slime', maxHp: 100, attack: 6, element: 2 }],
+    unlockRequires: ['prologue-2'],
   },
   {
+    id: 'wood-2',
     name: "Slime Queen's Nest",
     story: 'Deeper in the forest, the slimes have built a nest around something... or someone.',
     enemies: [
@@ -108,8 +254,10 @@ export const LEVELS: LevelConfig[] = [
         skills: [{ type: 'convertGems', from: 5, to: 2, count: 3 }],
       },
     ],
+    unlockRequires: ['wood-1'],
   },
   {
+    id: 'wood-3',
     name: 'Slime King',
     story: 'A towering Slime King rises from the nest, absorbing every lesser slime in its path.',
     enemies: [
@@ -127,63 +275,15 @@ export const LEVELS: LevelConfig[] = [
         boss: true,
       },
     ],
+    unlockRequires: ['wood-2'],
   },
 
-  // Chapter 2: The Goblin Uprising
+  // Final chapter — unlocked only once all three branch bosses are down.
   {
-    name: 'Goblin Outpost',
-    story: "With the slimes cleared, scouts report goblin war-drums echoing from the northern hills.",
-    enemies: [
-      { name: 'Goblin', maxHp: 170, attack: 13, element: 0 },
-      {
-        name: 'Goblin Pyro',
-        maxHp: 160,
-        attack: 14,
-        element: 0,
-        attackInterval: 2,
-        skills: [{ type: 'ignite', count: 2, durationTurns: 3 }],
-      },
-    ],
-  },
-  {
-    name: 'Goblin War Camp',
-    story: 'The goblin camp is larger than expected — and a geomancer channels the earth itself against you.',
-    enemies: [
-      { name: 'Goblin', maxHp: 180, attack: 14, element: 0 },
-      {
-        name: 'Goblin Geomancer',
-        maxHp: 200,
-        attack: 16,
-        element: 2,
-        attackInterval: 2,
-        skills: [{ type: 'petrify', count: 1 }],
-      },
-    ],
-    rules: { turnLimit: 18 },
-    starCriteria: { type: 'turns', threeStar: 12, twoStar: 15 },
-  },
-  {
-    name: 'Goblin Chief',
-    story: 'The Goblin Chief himself steps forward, wielding a blade forged from stolen village iron.',
-    enemies: [
-      {
-        name: 'Goblin Chief',
-        maxHp: 400,
-        attack: 20,
-        element: 1,
-        skills: [
-          { type: 'lock', lockCount: 2 },
-          { type: 'charge', chargeTurns: 3, multiplier: 3, interruptRatio: 0.15 },
-        ],
-        boss: true,
-      },
-    ],
-  },
-
-  // Chapter 3: The Dragon's Return
-  {
+    id: 'final-1',
     name: "Dragon's Foothills",
-    story: 'Smoke rises over the mountains. A venomous wyvern coils across the only path forward.',
+    story:
+      'Goblins, naga, slimes — three warbands, one truth: all of them were gathering tribute for something waking beneath the mountain.',
     enemies: [
       {
         name: 'Venom Wyvern',
@@ -194,9 +294,11 @@ export const LEVELS: LevelConfig[] = [
         skills: [{ type: 'poison', damagePerTurn: 6, durationTurns: 3 }],
       },
     ],
+    unlockRequires: ['fire-3', 'water-3', 'wood-3'],
     rules: { gemColors: [0, 2, 4, 5] },
   },
   {
+    id: 'final-2',
     name: "Dragon's Lair Entrance",
     story: 'Whelps circle the cave entrance, guarding the path to their sleeping parent.',
     enemies: [
@@ -215,10 +317,12 @@ export const LEVELS: LevelConfig[] = [
         skills: [{ type: 'convertGems', from: 5, to: 4, count: 3 }],
       },
     ],
+    unlockRequires: ['final-1'],
     rules: { turnLimit: 16 },
     starCriteria: { type: 'turns', threeStar: 11, twoStar: 14 },
   },
   {
+    id: 'final-3',
     name: 'Ancient Dragon',
     story: 'The Ancient Dragon awakens. This is the fight your team was assembled for.',
     enemies: [
@@ -236,19 +340,68 @@ export const LEVELS: LevelConfig[] = [
         boss: true,
       },
     ],
+    unlockRequires: ['final-2'],
     rules: { moveTimeMs: 4000 },
   },
 ];
 
-/** Display names for the level-select menu, index-aligned with LEVELS. */
+/** Campaign map columns: prologue at the bottom, three parallel branches, final chapter on top. */
+export const BRANCHES: BranchInfo[] = [
+  {
+    id: 'prologue',
+    title: 'Prologue',
+    levelIds: ['prologue-1', 'prologue-2'],
+    column: 'single',
+  },
+  {
+    id: 'fire',
+    title: '🔥 The Goblin Uprising',
+    element: 0,
+    levelIds: ['fire-1', 'fire-2', 'fire-3'],
+    column: 'left',
+  },
+  {
+    id: 'water',
+    title: '🌊 The Drowned Tide',
+    element: 1,
+    levelIds: ['water-1', 'water-2', 'water-3'],
+    column: 'center',
+  },
+  {
+    id: 'wood',
+    title: '🌿 The Slime Outbreak',
+    element: 2,
+    levelIds: ['wood-1', 'wood-2', 'wood-3'],
+    column: 'right',
+  },
+  {
+    id: 'final',
+    title: "🐉 The Dragon's Return",
+    levelIds: ['final-1', 'final-2', 'final-3'],
+    column: 'single',
+  },
+];
+
+/** Looks up a level by its stable id. */
+export function levelById(id: string): LevelConfig | undefined {
+  return LEVELS.find((level) => level.id === id);
+}
+
+/** The branch a level belongs to (every level id appears in exactly one branch). */
+export function branchForLevel(levelId: string): BranchInfo | undefined {
+  return BRANCHES.find((branch) => branch.levelIds.includes(levelId));
+}
+
+/** The id of the next level within the same branch, or null at a branch's end. */
+export function nextLevelIdInBranch(levelId: string): string | null {
+  const branch = branchForLevel(levelId);
+  if (!branch) return null;
+  const index = branch.levelIds.indexOf(levelId);
+  return index >= 0 && index < branch.levelIds.length - 1 ? branch.levelIds[index + 1] : null;
+}
+
+/** Display names, index-aligned with LEVELS (array order is for readability only — unlocks use ids). */
 export const LEVEL_NAMES = LEVELS.map((level) => level.name);
 
 /** Narration shown before each level starts, index-aligned with LEVELS. */
 export const LEVEL_STORY = LEVELS.map((level) => level.story);
-
-/** Chapter groupings for the level-select map. */
-export const CHAPTERS: ChapterInfo[] = [
-  { title: 'Ch.1 — The Slime Outbreak', levelIndices: [0, 1, 2] },
-  { title: 'Ch.2 — The Goblin Uprising', levelIndices: [3, 4, 5] },
-  { title: "Ch.3 — The Dragon's Return", levelIndices: [6, 7, 8] },
-];

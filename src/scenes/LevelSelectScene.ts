@@ -1,19 +1,30 @@
 import Phaser from 'phaser';
-import { CHAPTERS, LEVELS, LEVEL_NAMES } from '../game/levels';
+import { BRANCHES, branchForLevel, levelById } from '../game/levels';
+import type { BranchInfo, LevelConfig } from '../game/levels';
 import { enemyEmoji } from '../game/enemyArt';
 import { isLevelUnlocked, loadPlayerData } from '../game/playerData';
+import type { PlayerData } from '../game/playerData';
 import { lighten } from './gemArt';
-import { themeForChapter } from './battleFx';
+import { themeForBranch } from './battleFx';
 
-/** Zigzag node positions for the 9 story levels (level 0 at the bottom). */
-const NODE_XS = [220, 400, 580, 580, 400, 220, 220, 400, 580];
-const NODE_Y_BOTTOM = 668;
-const NODE_Y_STEP = 62;
+/** Map column x-positions for the three parallel branches ('single' columns sit at center). */
+const COLUMN_X: Record<BranchInfo['column'], number> = {
+  single: 400,
+  left: 180,
+  center: 400,
+  right: 620,
+};
+
+/** Bottom-to-top node y positions: prologue at the bottom, branches fan out, final chapter converges on top. */
+const PROLOGUE_YS = [706, 640];
+const BRANCH_YS = [564, 492, 420];
+const FINAL_YS = [330, 256, 182];
 
 /**
- * Story world map: a winding path of level nodes climbing through three
- * themed chapter bands. Levels unlock in order; cleared levels show their
- * best star rating and the current frontier node pulses.
+ * Campaign world map: a prologue path that forks into three parallel
+ * elemental branches (playable in any order), converging into the final
+ * chapter once all three branch bosses are down. Cleared levels show their
+ * best star rating; every currently-reachable level pulses.
  */
 export class LevelSelectScene extends Phaser.Scene {
   constructor() {
@@ -23,12 +34,19 @@ export class LevelSelectScene extends Phaser.Scene {
   create(): void {
     this.drawBackground();
     this.drawHeader();
-    this.drawPath();
+    this.drawMap();
     this.createTopNav();
   }
 
-  private nodePosition(levelIndex: number): { x: number; y: number } {
-    return { x: NODE_XS[levelIndex] ?? 400, y: NODE_Y_BOTTOM - levelIndex * NODE_Y_STEP };
+  /** Screen position of a level's node, derived from its branch column + position. */
+  private nodePosition(levelId: string): { x: number; y: number } {
+    const branch = branchForLevel(levelId);
+    if (!branch) return { x: 400, y: 400 };
+    const index = branch.levelIds.indexOf(levelId);
+    const x = COLUMN_X[branch.column];
+    const ys =
+      branch.id === 'prologue' ? PROLOGUE_YS : branch.id === 'final' ? FINAL_YS : BRANCH_YS;
+    return { x, y: ys[index] ?? 400 };
   }
 
   private drawBackground(): void {
@@ -37,51 +55,44 @@ export class LevelSelectScene extends Phaser.Scene {
     g.fillGradientStyle(0x10131d, 0x10131d, 0x151827, 0x151827, 1);
     g.fillRect(0, 0, width, height);
 
-    // Chapter bands, bottom (ch1) to top (ch3), tinted by their battle theme.
-    CHAPTERS.forEach((chapter, chapterIndex) => {
-      const theme = themeForChapter(chapterIndex);
-      const firstLevel = chapter.levelIndices[0];
-      const lastLevel = chapter.levelIndices[chapter.levelIndices.length - 1];
-      const bottom = this.nodePosition(firstLevel).y + 44;
-      const top = this.nodePosition(lastLevel).y - 44;
+    // Soft tinted zones: one vertical band per elemental branch column, plus
+    // horizontal bands for the prologue (bottom) and final chapter (top).
+    const bands = this.add.graphics();
+    for (const branch of BRANCHES) {
+      const theme = themeForBranch(branch.id);
+      if (branch.column === 'single') {
+        const ys = branch.id === 'prologue' ? PROLOGUE_YS : FINAL_YS;
+        const top = Math.min(...ys) - 48;
+        const bottom = Math.max(...ys) + 48;
+        bands.fillGradientStyle(theme.top, theme.top, 0x10131d, 0x10131d, 0.45, 0.45, 0.1, 0.1);
+        bands.fillRect(0, top, width, bottom - top);
+      } else {
+        const x = COLUMN_X[branch.column];
+        bands.fillGradientStyle(theme.top, theme.top, 0x10131d, 0x10131d, 0.5, 0.5, 0.12, 0.12);
+        bands.fillRoundedRect(x - 100, BRANCH_YS[2] - 44, 200, BRANCH_YS[0] - BRANCH_YS[2] + 88, 18);
+      }
 
-      const band = this.add.graphics();
-      band.fillGradientStyle(theme.top, theme.top, 0x10131d, 0x10131d, 0.5, 0.5, 0.15, 0.15);
-      band.fillRect(0, top, width, bottom - top);
-
-      // Put the title on the side away from the band's top node so it never
-      // overlaps that node's pulsing halo.
-      const topNodeX = this.nodePosition(lastLevel).x;
-      const titleOnLeft = topNodeX > 400;
-      this.add
-        .text(titleOnLeft ? 24 : width - 24, top + 10, chapter.title, {
-          fontSize: '15px',
-          color: `#${lighten(theme.ambient, 0.25).toString(16).padStart(6, '0')}`,
-          fontStyle: 'bold',
-        })
-        .setOrigin(titleOnLeft ? 0 : 1, 0)
-        .setAlpha(0.9);
-
-      // Ambient motes per band.
-      for (let i = 0; i < 5; i++) {
-        const x = Math.random() * width;
-        const y = top + Math.random() * (bottom - top);
-        const mote = this.add.circle(x, y, 1.5 + Math.random() * 2, lighten(theme.ambient, 0.3), 0.18);
+      // A few drifting motes per zone, tinted to the branch.
+      for (let i = 0; i < 4; i++) {
+        const zoneX =
+          branch.column === 'single' ? Math.random() * width : COLUMN_X[branch.column] - 90 + Math.random() * 180;
+        const ys = branch.id === 'prologue' ? PROLOGUE_YS : branch.id === 'final' ? FINAL_YS : BRANCH_YS;
+        const zoneY = Math.min(...ys) - 30 + Math.random() * (Math.max(...ys) - Math.min(...ys) + 60);
+        const mote = this.add.circle(zoneX, zoneY, 1.5 + Math.random() * 2, lighten(theme.ambient, 0.3), 0.18);
         this.tweens.add({
           targets: mote,
-          y: y - 50 - Math.random() * 50,
+          y: zoneY - 40 - Math.random() * 40,
           alpha: 0,
           duration: 5000 + Math.random() * 5000,
           delay: Math.random() * 4000,
           repeat: -1,
           onRepeat: () => {
-            mote.y = bottom;
-            mote.x = Math.random() * width;
+            mote.y = zoneY;
             mote.alpha = 0.18;
           },
         });
       }
-    });
+    }
   }
 
   private drawHeader(): void {
@@ -96,7 +107,7 @@ export class LevelSelectScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(this.scale.width / 2, 78, 'Follow the path — defeat the Ancient Dragon', {
+      .text(this.scale.width / 2, 78, 'Clear all three fronts — then face the Ancient Dragon', {
         fontSize: '14px',
         color: '#9aa3c7',
       })
@@ -112,117 +123,172 @@ export class LevelSelectScene extends Phaser.Scene {
       .setOrigin(1, 0);
   }
 
-  private drawPath(): void {
+  private isCleared(data: PlayerData, levelId: string): boolean {
+    return (data.levelStars[levelId] ?? 0) > 0;
+  }
+
+  private drawMap(): void {
     const data = loadPlayerData();
 
-    // Path segments under the nodes: dim by default, bright once walked.
+    this.drawConnections(data);
+    for (const branch of BRANCHES) {
+      for (const levelId of branch.levelIds) {
+        const level = levelById(levelId);
+        if (level) this.drawNode(data, branch, level);
+      }
+    }
+  }
+
+  /** All path segments: within-branch links, the 3-way fork after the prologue, and the 3-way convergence into the final chapter. */
+  private drawConnections(data: PlayerData): void {
     const lines = this.add.graphics();
-    for (let i = 0; i < LEVELS.length - 1; i++) {
-      const from = this.nodePosition(i);
-      const to = this.nodePosition(i + 1);
-      const walked = (data.levelStars[i] ?? 0) > 0;
-      lines.lineStyle(walked ? 5 : 3, walked ? 0xffe066 : 0x394162, walked ? 0.9 : 0.8);
+    const drawSegment = (fromId: string, toId: string, tint: number) => {
+      const from = this.nodePosition(fromId);
+      const to = this.nodePosition(toId);
+      const walked = this.isCleared(data, fromId) && this.isCleared(data, toId);
+      lines.lineStyle(walked ? 5 : 3, walked ? 0xffe066 : tint, walked ? 0.9 : 0.55);
       lines.lineBetween(from.x, from.y, to.x, to.y);
+    };
+
+    for (const branch of BRANCHES) {
+      const tint = lighten(themeForBranch(branch.id).ambient, 0);
+      for (let i = 0; i < branch.levelIds.length - 1; i++) {
+        drawSegment(branch.levelIds[i], branch.levelIds[i + 1], tint);
+      }
     }
 
-    LEVELS.forEach((level, levelIndex) => {
-      const { x, y } = this.nodePosition(levelIndex);
-      const chapterIndex = Math.floor(levelIndex / 3);
-      const theme = themeForChapter(chapterIndex);
-      const unlocked = isLevelUnlocked(data, levelIndex);
-      const stars = data.levelStars[levelIndex] ?? 0;
-      const isFrontier = unlocked && stars === 0;
-      const isBossLevel = level.enemies.some((e) => e.boss);
+    const prologueEnd = 'prologue-2';
+    const finalStart = 'final-1';
+    for (const branch of BRANCHES) {
+      if (branch.column === 'single') continue;
+      const tint = themeForBranch(branch.id).ambient;
+      drawSegment(prologueEnd, branch.levelIds[0], tint);
+      drawSegment(branch.levelIds[branch.levelIds.length - 1], finalStart, tint);
+    }
+  }
 
-      const nodeRadius = isBossLevel ? 34 : 28;
+  private drawNode(data: PlayerData, branch: BranchInfo, level: LevelConfig): void {
+    const { x, y } = this.nodePosition(level.id);
+    const theme = themeForBranch(branch.id);
+    const unlocked = isLevelUnlocked(data, level.id);
+    const stars = data.levelStars[level.id] ?? 0;
+    const isFrontier = unlocked && stars === 0;
+    const isBossLevel = level.enemies.some((e) => e.boss);
+    const isFinalGate = level.id === 'final-1' && !unlocked;
 
-      if (isFrontier) {
-        // Pulsing halo marking "you are here".
-        const halo = this.add.circle(x, y, nodeRadius + 8, 0xffe066, 0.25);
-        this.tweens.add({
-          targets: halo,
-          scale: 1.25,
-          alpha: 0.05,
-          duration: 900,
-          yoyo: true,
-          repeat: -1,
-          ease: 'Sine.easeInOut',
-        });
-      }
+    const nodeRadius = isBossLevel || isFinalGate ? 34 : 28;
 
-      const circle = this.add
-        .circle(x, y, nodeRadius, unlocked ? 0x2a2f45 : 0x1a1d29)
-        .setStrokeStyle(3, unlocked ? lighten(theme.ambient, 0.1) : 0x2a2f45);
+    if (isFrontier) {
+      // Pulsing halo marking every currently-playable level (with three
+      // branches open at once there can be several).
+      const halo = this.add.circle(x, y, nodeRadius + 8, 0xffe066, 0.25);
+      this.tweens.add({
+        targets: halo,
+        scale: 1.25,
+        alpha: 0.05,
+        duration: 900,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+    }
 
-      const representative = level.enemies[level.enemies.length - 1];
-      const icon = this.add
-        .text(x, y, unlocked ? enemyEmoji(representative.name) : '🔒', {
-          fontSize: isBossLevel ? '30px' : '24px',
-        })
-        .setOrigin(0.5);
+    const circle = this.add
+      .circle(x, y, nodeRadius, unlocked ? 0x2a2f45 : 0x1a1d29)
+      .setStrokeStyle(3, unlocked ? lighten(theme.ambient, 0.1) : 0x2a2f45);
 
-      // Level number badge.
-      const badge = this.add.circle(x - nodeRadius + 4, y - nodeRadius + 4, 11, theme.ambient, 1);
-      const badgeText = this.add
-        .text(badge.x, badge.y, `${levelIndex + 1}`, {
+    const representative = level.enemies[level.enemies.length - 1];
+    const icon = this.add
+      .text(x, y, unlocked ? enemyEmoji(representative.name) : '🔒', {
+        fontSize: isBossLevel ? '30px' : '24px',
+      })
+      .setOrigin(0.5);
+
+    // Position-in-branch badge (1..3 within its own branch).
+    const positionInBranch = branch.levelIds.indexOf(level.id) + 1;
+    const badge = this.add.circle(x - nodeRadius + 4, y - nodeRadius + 4, 11, theme.ambient, 1);
+    const badgeText = this.add
+      .text(badge.x, badge.y, `${positionInBranch}`, {
+        fontSize: '12px',
+        color: '#0e1018',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5);
+
+    // Tiny rule badges (turn limit / restricted gem colors / move-time override).
+    const ruleGlyphs: string[] = [];
+    if (level.rules?.turnLimit !== undefined) ruleGlyphs.push('⏱');
+    if (level.rules?.gemColors !== undefined) ruleGlyphs.push('🎨');
+    if (level.rules?.moveTimeMs !== undefined) ruleGlyphs.push('⚡');
+    const ruleBadge =
+      ruleGlyphs.length > 0
+        ? this.add
+            .text(x + nodeRadius - 4, y - nodeRadius + 4, ruleGlyphs.join(''), {
+              fontSize: '13px',
+            })
+            .setOrigin(1, 0.5)
+        : null;
+
+    // Labels sit beside the node: outside-left for the left column,
+    // outside-right for the right column, and to the right for center nodes
+    // (the outer columns' labels face outward, so nothing collides).
+    const side = branch.column === 'left' ? -1 : 1;
+    const labelX = x + side * (nodeRadius + 12);
+    const originX = side > 0 ? 0 : 1;
+    const labels: Phaser.GameObjects.Text[] = [];
+
+    // The first node of each elemental branch carries the branch title.
+    if (branch.column !== 'single' && positionInBranch === 1) {
+      labels.push(
+        this.add
+          .text(labelX, y - 24, branch.title, {
+            fontSize: '11px',
+            color: `#${lighten(theme.ambient, 0.25).toString(16).padStart(6, '0')}`,
+            fontStyle: 'bold',
+          })
+          .setOrigin(originX, 0.5),
+      );
+    }
+
+    if (stars > 0) {
+      labels.push(
+        this.add
+          .text(labelX, y - 9, '★'.repeat(stars) + '☆'.repeat(3 - stars), {
+            fontSize: '13px',
+            color: '#ffe066',
+          })
+          .setOrigin(originX, 0.5),
+      );
+    }
+
+    // The locked final gate explains its own requirement instead of a name.
+    const nameText = isFinalGate ? 'Clear all three branches to unlock' : level.name;
+    labels.push(
+      this.add
+        .text(labelX, y + (stars > 0 ? 9 : 0), nameText, {
           fontSize: '12px',
-          color: '#0e1018',
-          fontStyle: 'bold',
+          color: isFinalGate ? '#ffe066' : unlocked ? '#9aa3c7' : '#4a5068',
         })
-        .setOrigin(0.5);
+        .setOrigin(originX, 0.5),
+    );
 
-      // Tiny rule badges (turn limit / restricted gem colors / move-time
-      // override), stacked in the node's opposite top corner from the
-      // level-number badge.
-      const ruleGlyphs: string[] = [];
-      if (level.rules?.turnLimit !== undefined) ruleGlyphs.push('⏱');
-      if (level.rules?.gemColors !== undefined) ruleGlyphs.push('🎨');
-      if (level.rules?.moveTimeMs !== undefined) ruleGlyphs.push('⚡');
-      const ruleBadge =
-        ruleGlyphs.length > 0
-          ? this.add
-              .text(x + nodeRadius - 4, y - nodeRadius + 4, ruleGlyphs.join(''), {
-                fontSize: '13px',
-              })
-              .setOrigin(1, 0.5)
-          : null;
+    if (!unlocked) {
+      const dimmed = isFinalGate ? 0.75 : 0.5; // keep the gate's requirement readable
+      [circle, icon, badge, badgeText, ruleBadge, ...labels].forEach((obj) => obj?.setAlpha(dimmed));
+      return;
+    }
 
-      // Name + stars sit beside the node (below would collide with the next node).
-      const side = x > 400 ? -1 : 1;
-      const labelX = x + side * (nodeRadius + 12);
-      const originX = side > 0 ? 0 : 1;
-
-      const starsLabel = this.add
-        .text(labelX, y - 9, stars > 0 ? '★'.repeat(stars) + '☆'.repeat(3 - stars) : '', {
-          fontSize: '13px',
-          color: '#ffe066',
-        })
-        .setOrigin(originX, 0.5);
-
-      const nameLabel = this.add
-        .text(labelX, y + (stars > 0 ? 9 : 0), LEVEL_NAMES[levelIndex] ?? '', {
-          fontSize: '12px',
-          color: unlocked ? '#9aa3c7' : '#4a5068',
-        })
-        .setOrigin(originX, 0.5);
-
-      if (!unlocked) {
-        [circle, icon, badge, badgeText, starsLabel, nameLabel, ruleBadge].forEach((obj) => obj?.setAlpha(0.5));
-        return;
-      }
-
-      circle.setInteractive({ useHandCursor: true });
-      circle.on('pointerover', () => {
-        circle.setFillStyle(0x394162);
-        circle.setScale(1.1);
-      });
-      circle.on('pointerout', () => {
-        circle.setFillStyle(0x2a2f45);
-        circle.setScale(1);
-      });
-      circle.on('pointerdown', () => {
-        this.scene.start('GameScene', { levelIndex });
-      });
+    circle.setInteractive({ useHandCursor: true });
+    circle.on('pointerover', () => {
+      circle.setFillStyle(0x394162);
+      circle.setScale(1.1);
+    });
+    circle.on('pointerout', () => {
+      circle.setFillStyle(0x2a2f45);
+      circle.setScale(1);
+    });
+    circle.on('pointerdown', () => {
+      this.scene.start('GameScene', { levelId: level.id });
     });
   }
 

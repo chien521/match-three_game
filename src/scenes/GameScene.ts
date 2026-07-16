@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { Board } from '../game/Board';
 import type { Vec2 } from '../game/Board';
 import { BattleState } from '../game/BattleState';
-import { LEVEL_NAMES, LEVEL_STORY } from '../game/levels';
+import { branchForLevel, levelById, nextLevelIdInBranch } from '../game/levels';
 import type { LevelConfig } from '../game/levels';
 import {
   CURRENCY_GAME_CLEAR_BONUS,
@@ -52,6 +52,7 @@ import {
   flashDangerEdges,
   showBanner,
   showBossSplash,
+  themeForBranch,
   themeForChapter,
 } from './battleFx';
 import type { BattleTheme } from './battleFx';
@@ -115,6 +116,8 @@ export class GameScene extends Phaser.Scene {
   private rosterAvatars: Phaser.GameObjects.Container[] = [];
 
   private startLevelIndex = 0;
+  /** Story level id being played ('' in run mode). */
+  private levelId = '';
   /** The story LevelConfig being played (null in run mode). */
   private currentLevel: LevelConfig | null = null;
   /** Restricted gem-type palette for this level's board (undefined = all types). */
@@ -132,8 +135,8 @@ export class GameScene extends Phaser.Scene {
     super('GameScene');
   }
 
-  init(data: { levelIndex?: number; mode?: 'run' }): void {
-    this.startLevelIndex = data?.levelIndex ?? 0;
+  init(data: { levelId?: string; mode?: 'run' }): void {
+    this.levelId = data?.levelId ?? 'prologue-1';
     this.runMode = data?.mode === 'run' && getActiveRun() !== null;
   }
 
@@ -157,15 +160,16 @@ export class GameScene extends Phaser.Scene {
     // Board sits low enough to leave room for the enemy sprite above it.
     this.boardOriginY = (this.scale.height - boardPixelHeight) / 2 + 70;
 
-    const chapter = this.runMode
-      ? getActiveRun()?.floor ?? 0
-      : Math.floor(this.startLevelIndex / 3);
-    this.theme = themeForChapter(chapter);
+    this.currentLevel = this.runMode ? null : levelById(this.levelId) ?? null;
+    // BattleState still indexes into the flat LEVELS array internally.
+    this.startLevelIndex = Math.max(0, LEVELS.findIndex((level) => level.id === this.levelId));
+    this.theme = this.runMode
+      ? themeForChapter(getActiveRun()?.floor ?? 0)
+      : themeForBranch(branchForLevel(this.levelId)?.id);
     drawThemedBackground(this, this.theme);
 
     this.drawBoardBackground(boardPixelWidth, boardPixelHeight);
 
-    this.currentLevel = this.runMode ? null : LEVELS[this.startLevelIndex] ?? null;
     this.gemColors = this.currentLevel?.rules?.gemColors;
 
     this.board = new Board(BOARD_COLS, BOARD_ROWS);
@@ -242,7 +246,7 @@ export class GameScene extends Phaser.Scene {
     ).setDepth(200);
 
     const title = this.add
-      .text(this.scale.width / 2, this.scale.height / 2 - 90, LEVEL_NAMES[this.startLevelIndex] ?? '', {
+      .text(this.scale.width / 2, this.scale.height / 2 - 90, this.currentLevel?.name ?? '', {
         fontSize: '26px',
         color: '#ffe066',
         fontStyle: 'bold',
@@ -252,7 +256,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(201);
 
     const story = this.add
-      .text(this.scale.width / 2, this.scale.height / 2 - 30, LEVEL_STORY[this.startLevelIndex] ?? '', {
+      .text(this.scale.width / 2, this.scale.height / 2 - 30, this.currentLevel?.story ?? '', {
         fontSize: '16px',
         color: '#ffffff',
         align: 'center',
@@ -502,7 +506,7 @@ export class GameScene extends Phaser.Scene {
     );
     const prefix = this.runMode
       ? `Floor ${(getActiveRun()?.floor ?? 0) + 1}`
-      : `Lv.${this.battle.levelNumber}`;
+      : this.storyPrefix();
     this.enemyNameText.setText(
       `${prefix}  ${this.battle.enemy.name} (${elementName(this.battle.enemy.element)})`,
     );
@@ -554,6 +558,15 @@ export class GameScene extends Phaser.Scene {
     this.refreshRoster();
   }
 
+
+  /** Compact campaign-position tag for the enemy header, e.g. "🔥 2/3" or "Prologue 1/2". */
+  private storyPrefix(): string {
+    const branch = branchForLevel(this.levelId);
+    if (!branch) return '';
+    const position = branch.levelIds.indexOf(this.levelId) + 1;
+    const tag = branch.title.split(' ')[0];
+    return `${tag} ${position}/${branch.levelIds.length}`;
+  }
 
   private refreshRoster(): void {
     this.battle.team.forEach((character, index) => {
@@ -1291,21 +1304,25 @@ export class GameScene extends Phaser.Scene {
       hpRatio,
       turnsUsed: this.battle.turnCount,
     });
-    const isLastLevel = this.startLevelIndex === LEVELS.length - 1;
+    const branch = branchForLevel(this.levelId);
+    const nextLevelId = nextLevelIdInBranch(this.levelId);
+    const isCampaignFinale = branch?.id === 'final' && nextLevelId === null;
+    const isBranchBossClear = branch !== undefined && !isCampaignFinale && nextLevelId === null;
     const currencyEarned =
-      CURRENCY_PER_LEVEL_CLEAR + (isLastLevel ? CURRENCY_GAME_CLEAR_BONUS : 0);
+      CURRENCY_PER_LEVEL_CLEAR + (isCampaignFinale ? CURRENCY_GAME_CLEAR_BONUS : 0);
 
     let data = loadPlayerData();
     data = addCurrency(data, currencyEarned);
-    data = recordLevelClear(data, this.startLevelIndex, stars);
+    data = recordLevelClear(data, this.levelId, stars);
     savePlayerData(data);
 
+    // Auto-continue only within a branch; a branch boss sends the player
+    // back to the map to pick their next front.
     const buttons: { label: string; onClick: () => void }[] = [];
-    if (!isLastLevel) {
-      const nextLevel = this.startLevelIndex + 1;
+    if (nextLevelId) {
       buttons.push({
         label: 'Next Level ▶',
-        onClick: () => this.scene.restart({ levelIndex: nextLevel }),
+        onClick: () => this.scene.restart({ levelId: nextLevelId }),
       });
     }
     buttons.push({ label: 'Back to Map', onClick: () => this.scene.start('LevelSelectScene') });
@@ -1317,7 +1334,8 @@ export class GameScene extends Phaser.Scene {
       lines: [
         `Score: ${this.score}`,
         `Reward: +${currencyEarned} 💎`,
-        isLastLevel ? 'The Ancient Dragon has fallen. The realm is saved!' : '',
+        isCampaignFinale ? 'The Ancient Dragon has fallen. The realm is saved!' : '',
+        isBranchBossClear ? `${branch?.title ?? 'Branch'} cleared! Choose your next front on the map.` : '',
       ].filter(Boolean),
       buttons,
     });

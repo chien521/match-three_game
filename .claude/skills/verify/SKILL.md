@@ -21,9 +21,12 @@ location — import it via `createRequire('<repo>/package.json')`.
 ## Key coordinates (800x800 canvas)
 - Board: 6 cols x 5 rows, tile 96, origin (112, 230). Cell center:
   `x = 160 + 96*col`, `y = 278 + 96*row`. Enemy emoji sprite at (400, ~176).
-- Level-select world map: zigzag path, level i node at
-  x = [220,400,580,580,400,220,220,400,580][i], y = 668 - i*62 (level 1 at
-  bottom). Locked levels show 🔒 and are not clickable.
+- Level-select is a branching campaign map (GameScene takes `{ levelId }`,
+  not an index). Prologue nodes (400,706),(400,640); the three branch columns
+  x = 180 (fire), 400 (water), 620 (wood) with rows y = 564, 492, 420
+  (bottom→top; row 420 = branch boss); final chapter (400,330),(400,256),
+  (400,182). final-1 unlocks only after fire-3/water-3/wood-3 are cleared.
+  Locked levels show 🔒 and are not clickable.
   Bottom nav buttons y=764: Roguelike Tower x=218, Gacha x=400, Collection x=582.
 - Story intro "Begin Battle" button: (400, 520). Boss levels play a BOSS
   splash right after dismissing the intro.

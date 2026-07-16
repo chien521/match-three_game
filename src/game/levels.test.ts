@@ -1,6 +1,78 @@
 import { describe, expect, it } from 'vitest';
-import { LEVELS } from './levels';
+import { BRANCHES, LEVELS, branchForLevel, levelById, nextLevelIdInBranch } from './levels';
 import { GEM_TYPE_COUNT } from './constants';
+
+describe('campaign graph', () => {
+  it('level ids are unique', () => {
+    const ids = LEVELS.map((level) => level.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('every unlockRequires entry names an existing level', () => {
+    for (const level of LEVELS) {
+      for (const requiredId of level.unlockRequires) {
+        expect(levelById(requiredId), `${level.id} requires missing ${requiredId}`).toBeDefined();
+      }
+    }
+  });
+
+  it('the unlock graph has no cycles (every level is reachable)', () => {
+    // Walk the graph: repeatedly "clear" every level whose requirements are
+    // met. If the graph is acyclic, all levels get cleared eventually.
+    const cleared = new Set<string>();
+    let progressed = true;
+    while (progressed) {
+      progressed = false;
+      for (const level of LEVELS) {
+        if (cleared.has(level.id)) continue;
+        if (level.unlockRequires.every((id) => cleared.has(id))) {
+          cleared.add(level.id);
+          progressed = true;
+        }
+      }
+    }
+    expect(cleared.size).toBe(LEVELS.length);
+  });
+
+  it('the prologue entry is always open', () => {
+    expect(levelById('prologue-1')?.unlockRequires).toEqual([]);
+  });
+
+  it('the final chapter gate requires exactly the three branch bosses', () => {
+    expect(new Set(levelById('final-1')?.unlockRequires)).toEqual(
+      new Set(['fire-3', 'water-3', 'wood-3']),
+    );
+  });
+
+  it('every level belongs to exactly one branch, and branches only name real levels', () => {
+    const seen = new Map<string, number>();
+    for (const branch of BRANCHES) {
+      for (const id of branch.levelIds) {
+        expect(levelById(id), `branch ${branch.id} names missing level ${id}`).toBeDefined();
+        seen.set(id, (seen.get(id) ?? 0) + 1);
+      }
+    }
+    for (const level of LEVELS) {
+      expect(seen.get(level.id), `${level.id} missing from BRANCHES`).toBe(1);
+    }
+  });
+
+  it('each elemental branch ends in a boss level', () => {
+    for (const branch of BRANCHES) {
+      if (branch.column === 'single') continue;
+      const bossLevel = levelById(branch.levelIds[branch.levelIds.length - 1]);
+      expect(bossLevel?.enemies.some((e) => e.boss), `${branch.id} boss`).toBe(true);
+    }
+  });
+
+  it('branchForLevel / nextLevelIdInBranch navigate within a branch', () => {
+    expect(branchForLevel('fire-2')?.id).toBe('fire');
+    expect(nextLevelIdInBranch('fire-1')).toBe('fire-2');
+    expect(nextLevelIdInBranch('fire-3')).toBeNull(); // branch boss: back to the map
+    expect(nextLevelIdInBranch('final-3')).toBeNull();
+    expect(nextLevelIdInBranch('nonexistent')).toBeNull();
+  });
+});
 
 describe('levels schema', () => {
   for (const level of LEVELS) {

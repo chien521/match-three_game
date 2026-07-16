@@ -3,6 +3,13 @@ import { BattleState } from './BattleState';
 import type { Character } from './team';
 import { LEVELS } from './levels';
 
+/** Flat-array index of a level id (BattleState still indexes into LEVELS internally). */
+function levelIndexOf(id: string): number {
+  const index = LEVELS.findIndex((level) => level.id === id);
+  if (index < 0) throw new Error(`no level with id ${id}`);
+  return index;
+}
+
 const testTeam: Character[] = [
   {
     id: 'test-a',
@@ -153,7 +160,8 @@ describe('BattleState', () => {
   });
 
   it('advance() moves to the next enemy within a level, then the next level', () => {
-    const battle = new BattleState(1, testTeam); // Level 2 has two enemies
+    const fire1 = levelIndexOf('fire-1'); // two enemies: Goblin, Goblin Pyro
+    const battle = new BattleState(fire1, testTeam);
     expect(battle.enemyIndexInLevel).toBe(0);
     const hasNext = battle.advance();
     expect(hasNext).toBe(true);
@@ -161,7 +169,7 @@ describe('BattleState', () => {
 
     const hasNext2 = battle.advance();
     expect(hasNext2).toBe(true);
-    expect(battle.levelIndex).toBe(2);
+    expect(battle.levelIndex).toBe(fire1 + 1);
     expect(battle.enemyIndexInLevel).toBe(0);
   });
 
@@ -182,7 +190,7 @@ describe('BattleState', () => {
   });
 
   it('tickEnemyTurn counts down over multiple turns for slower enemies', () => {
-    const battle = new BattleState(2, testTeam); // Slime King: attackInterval 2
+    const battle = new BattleState(levelIndexOf('wood-3'), testTeam); // Slime King: attackInterval 2
     expect(battle.enemy.attackCountdown).toBe(2);
     expect(battle.tickEnemyTurn().attacks).toBe(false);
     expect(battle.enemy.attackCountdown).toBe(1);
@@ -191,7 +199,7 @@ describe('BattleState', () => {
   });
 
   it('shield reduces incoming damage while active, then expires', () => {
-    const battle = new BattleState(2, testTeam); // Slime King: 50% shield for 3 turns
+    const battle = new BattleState(levelIndexOf('wood-3'), testTeam); // Slime King: 50% shield for 3 turns
     expect(battle.enemy.shieldTurns).toBe(3);
     const before = battle.enemy.hp;
     battle.damageEnemy(100);
@@ -208,7 +216,7 @@ describe('BattleState', () => {
   });
 
   it('lock-skill enemies report gems to lock when they attack', () => {
-    const battle = new BattleState(5, testTeam); // Goblin Chief: locks 2 gems, charges for 3 turns
+    const battle = new BattleState(levelIndexOf('fire-3'), testTeam); // Goblin Chief: locks 2 gems, charges for 3 turns
     battle.tickEnemyTurn();
     battle.tickEnemyTurn();
     const action = battle.tickEnemyTurn();

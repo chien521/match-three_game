@@ -2,6 +2,7 @@ import { DEFAULT_TEAM } from './team';
 import type { Character } from './team';
 import { findCharacterTemplate } from './characterPool';
 import type { StarCriteria } from './levels';
+import { levelById } from './levels';
 
 const STORAGE_KEY = 'match3-player-data';
 const STARTING_CURRENCY = 20;
@@ -23,8 +24,45 @@ export interface PlayerData {
   currency: number;
   owned: OwnedCharacter[];
   activeTeamIds: string[];
-  /** Best star rating (1-3) earned per story level, indexed by level; 0/absent = not cleared. */
-  levelStars: number[];
+  /** Best star rating (1-3) earned per story level, keyed by level id; absent = not cleared. */
+  levelStars: Record<string, number>;
+}
+
+/**
+ * The flat 9-level order used before the campaign became a branch graph
+ * (Slime arc, Goblin arc, Dragon arc). Old saves stored levelStars as an
+ * array indexed by this order; migrateLevelStars maps them onto level ids.
+ */
+const LEGACY_LEVEL_ID_ORDER = [
+  'wood-1',
+  'wood-2',
+  'wood-3',
+  'fire-1',
+  'fire-2',
+  'fire-3',
+  'final-1',
+  'final-2',
+  'final-3',
+];
+
+/** Converts any stored levelStars shape (legacy array, id map, or garbage) to the id-keyed map. */
+export function migrateLevelStars(raw: unknown): Record<string, number> {
+  if (Array.isArray(raw)) {
+    const stars: Record<string, number> = {};
+    raw.forEach((value, index) => {
+      const id = LEGACY_LEVEL_ID_ORDER[index];
+      if (id && typeof value === 'number' && value > 0) stars[id] = value;
+    });
+    return stars;
+  }
+  if (raw !== null && typeof raw === 'object') {
+    const stars: Record<string, number> = {};
+    for (const [id, value] of Object.entries(raw as Record<string, unknown>)) {
+      if (typeof value === 'number' && value > 0) stars[id] = value;
+    }
+    return stars;
+  }
+  return {};
 }
 
 function defaultPlayerData(): PlayerData {
@@ -33,7 +71,7 @@ function defaultPlayerData(): PlayerData {
     currency: STARTING_CURRENCY,
     owned,
     activeTeamIds: DEFAULT_TEAM.map((c) => c.id),
-    levelStars: [],
+    levelStars: {},
   };
 }
 
@@ -43,8 +81,8 @@ export function loadPlayerData(): PlayerData {
     if (!raw) return defaultPlayerData();
     const parsed = JSON.parse(raw) as PlayerData;
     if (!parsed.owned || !parsed.activeTeamIds) return defaultPlayerData();
-    // Older saves predate story progress tracking.
-    if (!Array.isArray(parsed.levelStars)) parsed.levelStars = [];
+    // Older saves stored levelStars as a position-indexed array (or not at all).
+    parsed.levelStars = migrateLevelStars(parsed.levelStars);
     return parsed;
   } catch {
     return defaultPlayerData();
@@ -88,17 +126,24 @@ export function starsForLevel(
 }
 
 /** Records a story level clear, keeping the best star rating earned so far. */
-export function recordLevelClear(data: PlayerData, levelIndex: number, stars: number): PlayerData {
-  const levelStars = [...data.levelStars];
-  while (levelStars.length <= levelIndex) levelStars.push(0);
-  levelStars[levelIndex] = Math.max(levelStars[levelIndex], Math.max(1, Math.min(3, stars)));
+export function recordLevelClear(data: PlayerData, levelId: string, stars: number): PlayerData {
+  const clamped = Math.max(1, Math.min(3, stars));
+  const levelStars = { ...data.levelStars };
+  levelStars[levelId] = Math.max(levelStars[levelId] ?? 0, clamped);
   return { ...data, levelStars };
 }
 
-/** Level 0 is always open; each later level unlocks once the previous is cleared. */
-export function isLevelUnlocked(data: PlayerData, levelIndex: number): boolean {
-  if (levelIndex <= 0) return true;
-  return (data.levelStars[levelIndex - 1] ?? 0) > 0;
+/**
+ * A level unlocks once every level named in its `unlockRequires` has been
+ * cleared. A level that has itself been cleared is always unlocked (it stays
+ * replayable — this also keeps levels cleared under the old linear campaign
+ * accessible for migrated saves that never played the new prologue).
+ */
+export function isLevelUnlocked(data: PlayerData, levelId: string): boolean {
+  const level = levelById(levelId);
+  if (!level) return false;
+  if ((data.levelStars[levelId] ?? 0) > 0) return true;
+  return level.unlockRequires.every((requiredId) => (data.levelStars[requiredId] ?? 0) > 0);
 }
 
 /** Adds one copy of a character to the player's collection (or increments copies if already owned). */
