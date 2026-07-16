@@ -1,0 +1,15 @@
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: #12141c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+#app {
+  line-height: 0;
+}
