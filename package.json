@@ -12,7 +12,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "autocommit": "node scripts/autocommit.mjs"
   },
   "devDependencies": {
     "playwright-core": "^1.61.1",

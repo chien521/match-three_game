@@ -1,4 +1,18 @@
 {
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/autocommit.mjs",
+            "timeout": 120,
+            "statusMessage": "Auto-committing to GitHub..."
+          }
+        ]
+      }
+    ]
+  },
   "permissions": {
     "allow": [
       "PowerShell(node \"$env:LOCALAPPDATA\\\\Temp\\\\claude\\\\c--Users-andy-liu-Desktop-match-three-game\\\\3090ebf5-abad-46d8-84d9-9e75d04f3b92\\\\scratchpad\\\\driver.mjs\")",
