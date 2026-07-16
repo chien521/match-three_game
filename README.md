@@ -1,5 +1,9 @@
 # Match-Three Game
 
+[![Live Demo](https://img.shields.io/badge/demo-play%20now-39f6ff)](https://chien521.github.io/match-three_game/)
+
+**[▶ Play the live demo](https://chien521.github.io/match-three_game/)** — no install needed.
+
 A Puzzle & Dragons–style match-3 RPG built with **TypeScript**, **Phaser 3**, and **Vite**.
 
 Match colored gems using a free-drag path swap (not just adjacent-tile swaps) to deal elemental damage, build a team of characters pulled from a gacha system, and clear a 9-level story campaign.
@@ -40,3 +44,7 @@ See [AGENTS.md](./AGENTS.md) for a detailed architecture breakdown of the game m
 ## Deployment
 
 The production build (`dist/`) targets deployment as a standalone WebGL/HTML5 app on [VIVERSE](https://developers.viverse.com/).
+
+### Deploying to GitHub Pages
+
+Every push to `main` runs [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml), which builds the project and publishes `/dist` to GitHub Pages automatically — that's what powers the [live demo](https://chien521.github.io/match-three_game/) link above. No manual `gh-pages` branch or build step needed; just push to `main` and the Actions run handles the rest (enable it once under the repo's **Settings → Pages → Source: GitHub Actions**).
