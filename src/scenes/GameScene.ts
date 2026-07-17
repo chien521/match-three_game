@@ -15,22 +15,6 @@ import {
 } from '../game/playerData';
 import { computeGroupBaseDamage, computeHealAmount, computeMatchDamage, elementName } from '../game/team';
 import type { MatchGroup } from '../game/team';
-import type { RunStats } from '../game/run';
-import {
-  RUN_LOSS_CURRENCY,
-  RUN_WIN_CURRENCY,
-  advanceFloor,
-  findNode,
-  generateEncounter,
-  getActiveRun,
-  isLastFloor,
-  persistRun,
-  recordVictory,
-  runTeamMaxHp,
-  setActiveRun,
-} from '../game/run';
-import { aggregateRelics } from '../game/relics';
-import type { RelicModifiers } from '../game/relics';
 import {
   BOARD_COLS,
   BOARD_MARGIN,
@@ -53,12 +37,11 @@ import {
   showBanner,
   showBossSplash,
   themeForBranch,
-  themeForChapter,
 } from './battleFx';
 import type { BattleTheme } from './battleFx';
 import { recordLevelClear, starsForLevel } from '../game/playerData';
 import { LEVELS } from '../game/levels';
-import { getLang, t, tr } from '../game/i18n';
+import { t, tr } from '../game/i18n';
 import type { UiKey } from '../game/i18n';
 import { carryCooldownsForward, takeCarriedCooldowns } from '../game/storyCooldowns';
 import { drawAvatar } from './avatarUi';
@@ -120,16 +103,12 @@ export class GameScene extends Phaser.Scene {
   private rosterAvatars: Phaser.GameObjects.Container[] = [];
 
   private startLevelIndex = 0;
-  /** Story level id being played ('' in run mode). */
+  /** Story level id being played. */
   private levelId = '';
-  /** The story LevelConfig being played (null in run mode). */
   private currentLevel: LevelConfig | null = null;
   /** Restricted gem-type palette for this level's board (undefined = all types). */
   private gemColors?: number[];
 
-  /** True when this battle belongs to a roguelike run (see game/run.ts). */
-  private runMode = false;
-  private relicMods: RelicModifiers | null = null;
   private turnTimeMs = TURN_TIME_MS;
 
   private enemySprite!: EnemySprite;
@@ -145,9 +124,8 @@ export class GameScene extends Phaser.Scene {
     super('GameScene');
   }
 
-  init(data: { levelId?: string; mode?: 'run' }): void {
+  init(data: { levelId?: string }): void {
     this.levelId = data?.levelId ?? 'prologue-1';
-    this.runMode = data?.mode === 'run' && getActiveRun() !== null;
   }
 
   preload(): void {
@@ -174,12 +152,10 @@ export class GameScene extends Phaser.Scene {
     // Board sits low enough to leave room for the enemy sprite above it.
     this.boardOriginY = (this.scale.height - boardPixelHeight) / 2 + 70;
 
-    this.currentLevel = this.runMode ? null : levelById(this.levelId) ?? null;
+    this.currentLevel = levelById(this.levelId) ?? null;
     // BattleState still indexes into the flat LEVELS array internally.
     this.startLevelIndex = Math.max(0, LEVELS.findIndex((level) => level.id === this.levelId));
-    this.theme = this.runMode
-      ? themeForChapter(getActiveRun()?.floor ?? 0)
-      : themeForBranch(branchForLevel(this.levelId)?.id);
+    this.theme = themeForBranch(branchForLevel(this.levelId)?.id);
     drawThemedBackground(this, this.theme);
 
     this.drawBoardBackground(boardPixelWidth, boardPixelHeight);
@@ -205,41 +181,20 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(1, 0);
     drawLanguageToggle(this, this.scale.width - 62, 8, () => this.refreshLanguage());
 
-    const run = this.runMode ? getActiveRun() : null;
-    if (run && run.currentNodeId) {
-      const node = findNode(run.map, run.currentNodeId)!;
-      const encounter = generateEncounter(run, node);
-      this.relicMods = aggregateRelics(run.relics);
-      this.turnTimeMs = TURN_TIME_MS + this.relicMods.moveTimeBonusMs;
-      this.battle = new BattleState(0, run.team, {
-        levels: [encounter],
-        maxHp: runTeamMaxHp(run),
-        startHp: run.teamHp,
-      });
-      // Skill cooldowns persist across run-map nodes (see run.ts's
-      // recruit()/skillCooldowns) — without this every fresh node would
-      // hand back fully-ready skills, same bug as the story-mode restart.
-      this.battle.skillCooldowns = run.skillCooldowns.slice(0, run.team.length);
-    } else {
-      this.runMode = false;
-      this.relicMods = null;
-      this.turnTimeMs = this.currentLevel?.rules?.moveTimeMs ?? TURN_TIME_MS;
-      const playerData = loadPlayerData();
-      this.battle = new BattleState(this.startLevelIndex, getActiveTeam(playerData), {
-        rules: this.currentLevel?.rules,
-      });
-      // Skill cooldowns persist across "Next Level ▶" within a branch chain
-      // (see storyCooldowns.ts); every other entry point (map click, retry
-      // after defeat) never wrote this, so it's null there — fresh cooldowns.
-      const carried = takeCarriedCooldowns();
-      if (carried) this.battle.skillCooldowns = carried.slice(0, this.battle.team.length);
-    }
+    this.turnTimeMs = this.currentLevel?.rules?.moveTimeMs ?? TURN_TIME_MS;
+    const playerData = loadPlayerData();
+    this.battle = new BattleState(this.startLevelIndex, getActiveTeam(playerData), {
+      rules: this.currentLevel?.rules,
+    });
+    // Skill cooldowns persist across "Next Level ▶" within a branch chain
+    // (see storyCooldowns.ts); every other entry point (map click, retry
+    // after defeat) never wrote this, so it's null there — fresh cooldowns.
+    const carried = takeCarriedCooldowns();
+    if (carried) this.battle.skillCooldowns = carried.slice(0, this.battle.team.length);
+
     this.enemySprite = new EnemySprite(this, this.scale.width / 2, ENEMY_SPRITE_Y);
     this.createHpBars();
     this.createTurnTimerBar(boardPixelWidth);
-    // Run battles start immediately; story battles introduce the enemy only
-    // after the narration overlay is dismissed (see showStoryIntro).
-    if (this.runMode) void this.introduceEnemy();
 
     const leaderSkill = this.battle.team[0]?.leaderSkill;
     if (leaderSkill) {
@@ -251,11 +206,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.setupInput();
-    if (this.runMode) {
-      this.storyDismissed = true; // run battles start immediately, no narration
-    } else {
-      this.showStoryIntro();
-    }
+    this.showStoryIntro();
   }
 
   /** Blocks input behind a narration overlay before the battle begins.
@@ -550,9 +501,7 @@ export class GameScene extends Phaser.Scene {
       HP_BAR_WIDTH * Phaser.Math.Clamp(enemyRatio, 0, 1),
       HP_BAR_HEIGHT,
     );
-    const prefix = this.runMode
-      ? t('floorPrefix', { n: (getActiveRun()?.floor ?? 0) + 1 })
-      : this.storyPrefix();
+    const prefix = this.storyPrefix();
     this.enemyNameText.setText(
       `${prefix}  ${tr(this.battle.enemy.name)} (${tr(elementName(this.battle.enemy.element))})`,
     );
@@ -1045,10 +994,9 @@ export class GameScene extends Phaser.Scene {
       combo,
       this.battle.team,
       this.battle.enemy.element,
-      this.relicMods ?? undefined,
       this.battle.attackBuffMultiplier,
     );
-    const totalHeal = computeHealAmount(allGroups, combo, this.relicMods ?? undefined);
+    const totalHeal = computeHealAmount(allGroups, combo);
 
     await this.applyTurnResult(totalDamage, totalHeal, hitPoints);
     this.resolving = false;
@@ -1292,16 +1240,7 @@ export class GameScene extends Phaser.Scene {
     this.refreshHpBars();
 
     if (playerDefeated) {
-      if (this.runMode) {
-        const run = getActiveRun();
-        // Snapshot stats before setActiveRun(null) clears the active run.
-        const stats = run ? { ...run.stats, relicsCollected: [...run.stats.relicsCollected] } : undefined;
-        savePlayerData(addCurrency(loadPlayerData(), RUN_LOSS_CURRENCY));
-        setActiveRun(null);
-        this.endGame('runFailed', true, { currencyGain: RUN_LOSS_CURRENCY, stats });
-      } else {
-        this.endGame('gameOver', true);
-      }
+      this.endGame('gameOver', true);
     }
   }
 
@@ -1354,23 +1293,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Plays the death animation, awards currency, then advances to the next
-   * wave (with a banner) or ends the level/run battle with a results panel. */
+   * wave (with a banner) or ends the level battle with a results panel. */
   private async handleEnemyDefeated(): Promise<void> {
     const defeatedElement = this.battle.enemy.element;
     await this.enemySprite.die(defeatedElement);
     if (this.gameEnded) return;
 
-    if (this.runMode) {
-      const hasNext = this.battle.advance();
-      if (hasNext) {
-        await this.showNextWave();
-        return;
-      }
-      this.handleRunVictory();
-      return;
-    }
-
-    // Story mode: a battle covers exactly one selected level. Clearing its
+    // A battle covers exactly one selected level. Clearing its
     // last enemy ends the battle with stars + progress; otherwise the next
     // wave of the same level rolls in.
     savePlayerData(addCurrency(loadPlayerData(), CURRENCY_PER_ENEMY_DEFEAT));
@@ -1451,76 +1380,16 @@ export class GameScene extends Phaser.Scene {
     show();
   }
 
-  /**
-   * Ends a won run battle: carries remaining HP (plus post-battle relic
-   * healing) back into the run, queues the node's reward, and returns to the
-   * run map — or finishes/advances the run after a boss.
-   */
-  private handleRunVictory(): void {
-    const run = getActiveRun();
-    if (!run || !run.currentNodeId) return;
-    const node = findNode(run.map, run.currentNodeId)!;
-
-    const maxHp = runTeamMaxHp(run);
-    const postBattleHeal = Math.round(maxHp * (this.relicMods?.postBattleHealFraction ?? 0));
-    run.teamHp = Math.min(maxHp, this.battle.playerHp + postBattleHeal);
-    run.skillCooldowns = this.battle.skillCooldowns;
-    recordVictory(run, node.type);
-    persistRun(run);
-
-    if (node.type === 'boss') {
-      if (isLastFloor(run)) {
-        // Snapshot stats before setActiveRun(null) clears the active run.
-        const stats = { ...run.stats, relicsCollected: [...run.stats.relicsCollected] };
-        savePlayerData(addCurrency(loadPlayerData(), RUN_WIN_CURRENCY));
-        setActiveRun(null);
-        this.endGame('runComplete', false, { currencyGain: RUN_WIN_CURRENCY, stats });
-        return;
-      }
-      advanceFloor(run);
-      run.pendingReward = 'relic'; // floor-clear reward
-    } else if (node.type === 'elite') {
-      run.pendingReward = 'relic';
-    } else if (node.recruit) {
-      run.pendingReward = 'recruit';
-    }
-    persistRun(run); // pendingReward (and any advanceFloor changes) written above
-
-    this.gameEnded = true; // stop any in-flight enemy retaliation
-    this.scene.start('RunMapScene');
-  }
-
-  /** Structured end-of-battle results panel (victory or defeat, story or run).
+  /** Structured end-of-battle results panel (victory or defeat).
    * Takes a title KEY (not text) so the language toggle can rebuild it. */
-  private endGame(
-    titleKey: UiKey,
-    isDefeat: boolean,
-    opts: { currencyGain?: number; stats?: RunStats } = {},
-  ): void {
+  private endGame(titleKey: UiKey, isDefeat: boolean): void {
     this.gameEnded = true;
 
     const show = () => {
-      const lines: string[] = [];
-      if (opts.currencyGain !== undefined) {
-        lines.push(t('currencyGain', { n: opts.currencyGain }));
-      }
-      if (opts.stats) {
-        const relicList =
-          opts.stats.relicsCollected.length > 0
-            ? opts.stats.relicsCollected.map((name) => tr(name)).join(getLang() === 'zh' ? '、' : ', ')
-            : t('none');
-        lines.push(
-          t('statBattles', { n: opts.stats.battlesWon }),
-          t('statElites', { n: opts.stats.elitesKilled }),
-          t('statFloors', { n: opts.stats.floorsCleared }),
-          t('relicsLine', { list: relicList }),
-        );
-      }
-
       this.showEndPanel({
         title: t(titleKey),
         titleColor: isDefeat ? '#ff5555' : '#ffe066',
-        lines,
+        lines: [],
         buttons: [{ label: t('backToMenu'), onClick: () => this.scene.start('LevelSelectScene') }],
       });
     };

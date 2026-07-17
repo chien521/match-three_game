@@ -9,13 +9,19 @@ import { lighten } from './gemArt';
 import { themeForBranch } from './battleFx';
 import { drawLanguageToggle } from './langToggle';
 
-/** Map column x-positions for the three parallel branches ('single' columns sit at center). */
-const COLUMN_X: Record<BranchInfo['column'], number> = {
-  single: 400,
-  left: 180,
-  center: 400,
-  right: 620,
-};
+/** Parallel (non-'single') branches, in map order — however many there are,
+ * evenly spread across the width by columnX() below. */
+const PARALLEL_BRANCHES = BRANCHES.filter((b) => b.column !== 'single');
+const COLUMN_MARGIN = 120;
+
+/** x position for a branch column: 'single' sits dead center; a parallel
+ * branch's index is spread evenly across the map width between the margins. */
+function columnX(column: BranchInfo['column']): number {
+  if (column === 'single') return 400;
+  if (PARALLEL_BRANCHES.length <= 1) return 400;
+  const usable = 800 - COLUMN_MARGIN * 2;
+  return COLUMN_MARGIN + (usable * column) / (PARALLEL_BRANCHES.length - 1);
+}
 
 /** Bottom-to-top node y positions: prologue at the bottom, branches fan out, final chapter converges on top. */
 const PROLOGUE_YS = [706, 640];
@@ -23,9 +29,9 @@ const BRANCH_YS = [564, 492, 420];
 const FINAL_YS = [330, 256, 182];
 
 /**
- * Campaign world map: a prologue path that forks into three parallel
+ * Campaign world map: a prologue path that forks into several parallel
  * elemental branches (playable in any order), converging into the final
- * chapter once all three branch bosses are down. Cleared levels show their
+ * chapter once every branch boss is down. Cleared levels show their
  * best star rating; every currently-reachable level pulses.
  */
 export class LevelSelectScene extends Phaser.Scene {
@@ -46,7 +52,7 @@ export class LevelSelectScene extends Phaser.Scene {
     const branch = branchForLevel(levelId);
     if (!branch) return { x: 400, y: 400 };
     const index = branch.levelIds.indexOf(levelId);
-    const x = COLUMN_X[branch.column];
+    const x = columnX(branch.column);
     const ys =
       branch.id === 'prologue' ? PROLOGUE_YS : branch.id === 'final' ? FINAL_YS : BRANCH_YS;
     return { x, y: ys[index] ?? 400 };
@@ -70,15 +76,15 @@ export class LevelSelectScene extends Phaser.Scene {
         bands.fillGradientStyle(theme.top, theme.top, 0x10131d, 0x10131d, 0.45, 0.45, 0.1, 0.1);
         bands.fillRect(0, top, width, bottom - top);
       } else {
-        const x = COLUMN_X[branch.column];
+        const x = columnX(branch.column);
         bands.fillGradientStyle(theme.top, theme.top, 0x10131d, 0x10131d, 0.5, 0.5, 0.12, 0.12);
-        bands.fillRoundedRect(x - 100, BRANCH_YS[2] - 44, 200, BRANCH_YS[0] - BRANCH_YS[2] + 88, 18);
+        bands.fillRoundedRect(x - 80, BRANCH_YS[2] - 44, 160, BRANCH_YS[0] - BRANCH_YS[2] + 88, 18);
       }
 
       // A few drifting motes per zone, tinted to the branch.
       for (let i = 0; i < 4; i++) {
         const zoneX =
-          branch.column === 'single' ? Math.random() * width : COLUMN_X[branch.column] - 90 + Math.random() * 180;
+          branch.column === 'single' ? Math.random() * width : columnX(branch.column) - 70 + Math.random() * 140;
         const ys = branch.id === 'prologue' ? PROLOGUE_YS : branch.id === 'final' ? FINAL_YS : BRANCH_YS;
         const zoneY = Math.min(...ys) - 30 + Math.random() * (Math.max(...ys) - Math.min(...ys) + 60);
         const mote = this.add.circle(zoneX, zoneY, 1.5 + Math.random() * 2, lighten(theme.ambient, 0.3), 0.18);
@@ -235,7 +241,7 @@ export class LevelSelectScene extends Phaser.Scene {
     // Labels sit beside the node: outside-left for the left column,
     // outside-right for the right column, and to the right for center nodes
     // (the outer columns' labels face outward, so nothing collides).
-    const side = branch.column === 'left' ? -1 : 1;
+    const side = branch.column === 0 ? -1 : 1;
     const labelX = x + side * (nodeRadius + 12);
     const originX = side > 0 ? 0 : 1;
     const labels: Phaser.GameObjects.Text[] = [];
@@ -297,7 +303,6 @@ export class LevelSelectScene extends Phaser.Scene {
 
   private createTopNav(): void {
     const labels: { text: string; scene: string }[] = [
-      { text: t('navTower'), scene: 'RunMapScene' },
       { text: t('navGacha'), scene: 'GachaScene' },
       { text: t('navCollection'), scene: 'CollectionScene' },
     ];

@@ -1,5 +1,4 @@
 import { ELEMENT_NAMES, HEAL_PER_GEM, HEART_TYPE } from './constants';
-import type { RelicModifiers } from './relics';
 
 export type SkillEffect = 'damage' | 'heal' | 'convert' | 'extendTime';
 export type Rarity = 'Common' | 'Rare' | 'SSR';
@@ -265,7 +264,6 @@ export function computeMatchDamage(
   combo: number,
   team: Character[],
   targetElement: number,
-  relicMods?: RelicModifiers,
   extraMultiplier = 1,
 ): number {
   const leaderSkill = team[0]?.leaderSkill;
@@ -283,29 +281,20 @@ export function computeMatchDamage(
       amount *= leaderSkill.multiplier;
     }
 
-    if (relicMods) {
-      amount *= relicMods.elementDamageMultiplier[element] ?? 1;
-    }
-
     total += amount;
   }
-  const allMultiplier = relicMods?.allDamageMultiplier ?? 1;
-  return Math.round(total * comboMultiplier(combo) * allMultiplier * extraMultiplier);
+  return Math.round(total * comboMultiplier(combo) * extraMultiplier);
 }
 
 
 /** Total HP restored for the whole turn from matched Heart orb groups, scaled by the combo multiplier. */
-export function computeHealAmount(
-  groups: MatchGroup[],
-  combo: number,
-  relicMods?: RelicModifiers,
-): number {
+export function computeHealAmount(groups: MatchGroup[], combo: number): number {
   let total = 0;
   for (const group of groups) {
     if (group.element !== HEART_TYPE) continue;
     const effectiveSize = group.size + 0.5 * (group.enhancedCount ?? 0);
     total += effectiveSize * HEAL_PER_GEM * groupSizeMultiplier(group.size);
   }
-  return Math.round(total * comboMultiplier(combo) * (relicMods?.healMultiplier ?? 1));
+  return Math.round(total * comboMultiplier(combo));
 }
 

@@ -38,9 +38,9 @@ describe('campaign graph', () => {
     expect(levelById('prologue-1')?.unlockRequires).toEqual([]);
   });
 
-  it('the final chapter gate requires exactly the three branch bosses', () => {
+  it('the final chapter gate requires exactly the four branch bosses', () => {
     expect(new Set(levelById('final-1')?.unlockRequires)).toEqual(
-      new Set(['fire-3', 'water-3', 'wood-3']),
+      new Set(['fire-3', 'water-3', 'wood-3', 'sky-3']),
     );
   });
 

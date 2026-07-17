@@ -17,6 +17,8 @@ const EMOJI_RULES: [RegExp, string][] = [
   [/leviathan/i, '🐋'],
   [/dragon|wyvern|whelp/i, '🐉'],
   [/drake/i, '🐲'],
+  [/griffon/i, '🦅'],
+  [/harpy/i, '🦅'],
   [/bat/i, '🦇'],
   [/slime|ooze/i, '🟢'],
   [/shaman|witch|mage/i, '🧙'],

@@ -3,8 +3,6 @@ import { UI, ZH_CONTENT, getLang, setLang, t, toggleLang, tr } from './i18n';
 import type { UiKey } from './i18n';
 import { BRANCHES, LEVELS } from './levels';
 import { CHARACTER_POOL } from './characterPool';
-import { RELICS } from './relics';
-import { FLOOR_BOSSES, FLOOR_GRUNTS } from './run';
 import { ELEMENT_NAMES } from './constants';
 import { elementAbbr } from './team';
 
@@ -69,12 +67,6 @@ describe('tr() — content strings', () => {
     expect(tr('totally unknown')).toBe('totally unknown');
   });
 
-  it('handles the run-mode "Elite " name prefix', () => {
-    setLang('zh');
-    expect(tr('Elite Goblin')).toBe('精英‧哥布林');
-    setLang('en');
-    expect(tr('Elite Goblin')).toBe('Elite Goblin');
-  });
 });
 
 describe('translation coverage — every user-facing content string has a zh entry', () => {
@@ -83,8 +75,6 @@ describe('translation coverage — every user-facing content string has a zh ent
     { label: 'level stories', values: LEVELS.map((l) => l.story) },
     { label: 'branch titles', values: BRANCHES.map((b) => b.title) },
     { label: 'story enemy names', values: LEVELS.flatMap((l) => l.enemies.map((e) => e.name)) },
-    { label: 'run grunt names', values: FLOOR_GRUNTS.flat().map((g) => g.name) },
-    { label: 'run boss names', values: FLOOR_BOSSES.map((b) => b.name) },
     { label: 'character names', values: CHARACTER_POOL.map((c) => c.name) },
     { label: 'skill names', values: CHARACTER_POOL.map((c) => c.skillName) },
     {
@@ -96,8 +86,6 @@ describe('translation coverage — every user-facing content string has a zh ent
     { label: 'element names', values: [...ELEMENT_NAMES] },
     { label: 'element abbreviations', values: [0, 1, 2, 3, 4].map((i) => elementAbbr(i)) },
     { label: 'rarities', values: ['Common', 'Rare', 'SSR'] },
-    { label: 'relic names', values: RELICS.map((r) => r.name) },
-    { label: 'relic descriptions', values: RELICS.map((r) => r.description) },
   ];
 
   for (const group of required) {

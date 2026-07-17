@@ -149,12 +149,12 @@ describe('computeMatchDamage', () => {
   });
 
   it('extraMultiplier (e.g. an active teamBuff skill) scales the whole-turn total on top of everything else', () => {
-    const damage = computeMatchDamage([{ element: 0, size: 3 }], 1, [fireCharacter], 3, undefined, 2);
+    const damage = computeMatchDamage([{ element: 0, size: 3 }], 1, [fireCharacter], 3, 2);
     expect(damage).toBe(600); // 300 base * 2 extraMultiplier
   });
 
   it('extraMultiplier defaults to 1x when omitted', () => {
-    const damage = computeMatchDamage([{ element: 0, size: 3 }], 1, [fireCharacter], 3, undefined);
+    const damage = computeMatchDamage([{ element: 0, size: 3 }], 1, [fireCharacter], 3);
     expect(damage).toBe(300);
   });
 });

@@ -87,7 +87,7 @@ export interface LevelConfig {
   starCriteria?: StarCriteria;
 }
 
-/** A column of levels on the campaign map (prologue, one of the three elemental branches, or the final chapter). */
+/** A column of levels on the campaign map (prologue, one of the elemental branches, or the final chapter). */
 export interface BranchInfo {
   id: string;
   title: string;
@@ -95,8 +95,10 @@ export interface BranchInfo {
   element?: number;
   /** Level ids in play order within the branch. */
   levelIds: string[];
-  /** Map column: 'single' spans the center; left/center/right are the parallel branches. */
-  column: 'single' | 'left' | 'center' | 'right';
+  /** Map column: 'single' spans the center; a number is this branch's 0-based
+   * position among the parallel branches (left to right), letting the map
+   * lay out any number of forks evenly instead of a fixed left/center/right. */
+  column: 'single' | number;
 }
 
 export const LEVELS: LevelConfig[] = [
@@ -278,12 +280,68 @@ export const LEVELS: LevelConfig[] = [
     unlockRequires: ['wood-2'],
   },
 
-  // Final chapter — unlocked only once all three branch bosses are down.
+  // Sky branch — The Skyward Talons.
+  {
+    id: 'sky-1',
+    name: 'Talon Pass',
+    story:
+      'High above the other three fronts, harpies have claimed the mountain pass — their screeching cries send climbers reeling.',
+    enemies: [
+      {
+        name: 'Harpy Screecher',
+        maxHp: 190,
+        attack: 14,
+        element: 3,
+        skills: [{ type: 'lock', lockCount: 2 }],
+      },
+    ],
+    unlockRequires: ['prologue-2'],
+  },
+  {
+    id: 'sky-2',
+    name: 'Aerie Ambush',
+    story: 'A storm-caller and her skirmisher escort turn the pass into a killing field, hope curdling into feathers.',
+    enemies: [
+      { name: 'Harpy Skirmisher', maxHp: 200, attack: 15, element: 3 },
+      {
+        name: 'Harpy Stormcaller',
+        maxHp: 190,
+        attack: 16,
+        element: 3,
+        skills: [{ type: 'convertGems', from: 5, to: 3, count: 3 }],
+      },
+    ],
+    unlockRequires: ['sky-1'],
+    rules: { turnLimit: 17 },
+    starCriteria: { type: 'turns', threeStar: 12, twoStar: 15 },
+  },
+  {
+    id: 'sky-3',
+    name: 'Griffon Matriarch',
+    story: 'The Griffon Matriarch descends from her aerie — the mountain pass belongs to her, and she means to keep it.',
+    enemies: [
+      {
+        name: 'Griffon Matriarch',
+        maxHp: 380,
+        attack: 24,
+        element: 3,
+        skills: [
+          { type: 'shield', damageReduction: 0.35, durationTurns: 3 },
+          { type: 'lock', lockCount: 2 },
+          { type: 'enrage', hpThreshold: 0.3, attackMultiplier: 1.5 },
+        ],
+        boss: true,
+      },
+    ],
+    unlockRequires: ['sky-2'],
+  },
+
+  // Final chapter — unlocked only once all four branch bosses are down.
   {
     id: 'final-1',
     name: "Dragon's Foothills",
     story:
-      'Goblins, naga, slimes — three warbands, one truth: all of them were gathering tribute for something waking beneath the mountain.',
+      'Goblins, naga, slimes, harpies — four warbands, one truth: all of them were gathering tribute for something waking beneath the mountain.',
     enemies: [
       {
         name: 'Venom Wyvern',
@@ -294,7 +352,7 @@ export const LEVELS: LevelConfig[] = [
         skills: [{ type: 'poison', damagePerTurn: 6, durationTurns: 3 }],
       },
     ],
-    unlockRequires: ['fire-3', 'water-3', 'wood-3'],
+    unlockRequires: ['fire-3', 'water-3', 'wood-3', 'sky-3'],
     rules: { gemColors: [0, 2, 4, 5] },
   },
   {
@@ -345,7 +403,7 @@ export const LEVELS: LevelConfig[] = [
   },
 ];
 
-/** Campaign map columns: prologue at the bottom, three parallel branches, final chapter on top. */
+/** Campaign map columns: prologue at the bottom, four parallel branches, final chapter on top. */
 export const BRANCHES: BranchInfo[] = [
   {
     id: 'prologue',
@@ -358,21 +416,28 @@ export const BRANCHES: BranchInfo[] = [
     title: '🔥 The Goblin Uprising',
     element: 0,
     levelIds: ['fire-1', 'fire-2', 'fire-3'],
-    column: 'left',
+    column: 0,
   },
   {
     id: 'water',
     title: '🌊 The Drowned Tide',
     element: 1,
     levelIds: ['water-1', 'water-2', 'water-3'],
-    column: 'center',
+    column: 1,
   },
   {
     id: 'wood',
     title: '🌿 The Slime Outbreak',
     element: 2,
     levelIds: ['wood-1', 'wood-2', 'wood-3'],
-    column: 'right',
+    column: 2,
+  },
+  {
+    id: 'sky',
+    title: '🦅 The Skyward Talons',
+    element: 3,
+    levelIds: ['sky-1', 'sky-2', 'sky-3'],
+    column: 3,
   },
   {
     id: 'final',

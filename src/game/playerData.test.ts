@@ -96,16 +96,17 @@ describe('isLevelUnlocked (branch graph)', () => {
     expect(isLevelUnlocked(makeData({ 'prologue-1': 2 }), 'fire-1')).toBe(false);
   });
 
-  it('clearing the prologue opens all three branches at once', () => {
+  it('clearing the prologue opens all four branches at once', () => {
     const data = makeData({ 'prologue-1': 1, 'prologue-2': 1 });
     expect(isLevelUnlocked(data, 'fire-1')).toBe(true);
     expect(isLevelUnlocked(data, 'water-1')).toBe(true);
     expect(isLevelUnlocked(data, 'wood-1')).toBe(true);
+    expect(isLevelUnlocked(data, 'sky-1')).toBe(true);
     expect(isLevelUnlocked(data, 'fire-2')).toBe(false); // still needs fire-1
   });
 
-  it('the final chapter needs all three branch bosses, in any clear order', () => {
-    let stars: Record<string, number> = { 'fire-3': 1, 'wood-3': 2 };
+  it('the final chapter needs all four branch bosses, in any clear order', () => {
+    let stars: Record<string, number> = { 'fire-3': 1, 'wood-3': 2, 'sky-3': 1 };
     expect(isLevelUnlocked(makeData(stars), 'final-1')).toBe(false);
     stars = { ...stars, 'water-3': 3 };
     expect(isLevelUnlocked(makeData(stars), 'final-1')).toBe(true);

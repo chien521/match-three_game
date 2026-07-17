@@ -4,7 +4,7 @@
  * - UI: interface strings keyed by stable ids, with `{param}` placeholders —
  *   rendered via t(key, params).
  * - ZH_CONTENT: content names/sentences keyed by their canonical ENGLISH text
- *   (level names, stories, enemy/character/skill/relic names...) — rendered
+ *   (level names, stories, enemy/character/skill names...) — rendered
  *   via tr(english). The data files stay English-only; ids, save formats and
  *   the emoji lookups (enemyArt/characterArt key on English) are unaffected.
  *
@@ -79,11 +79,10 @@ export const UI = {
 
   // Level-select map
   mapSubtitle: {
-    en: 'Clear all three fronts — then face the Ancient Dragon',
-    zh: '攻克三條戰線——再迎戰遠古巨龍',
+    en: 'Clear all four fronts — then face the Ancient Dragon',
+    zh: '攻克四條戰線——再迎戰遠古巨龍',
   },
-  finalGate: { en: 'Clear all three branches to unlock', zh: '全破三條支線後解鎖' },
-  navTower: { en: 'Roguelike Tower', zh: '爬塔試煉' },
+  finalGate: { en: 'Clear all four branches to unlock', zh: '全破四條支線後解鎖' },
   navGacha: { en: 'Gacha', zh: '英雄召喚' },
   navCollection: { en: 'Collection / Team', zh: '圖鑑／隊伍' },
 
@@ -92,12 +91,12 @@ export const UI = {
   'branchTag.fire': { en: '🔥', zh: '🔥' },
   'branchTag.water': { en: '🌊', zh: '🌊' },
   'branchTag.wood': { en: '🌿', zh: '🌿' },
+  'branchTag.sky': { en: '🦅', zh: '🦅' },
   'branchTag.final': { en: '🐉', zh: '🐉' },
 
   // Battle
   beginBattle: { en: 'Begin Battle', zh: '開始戰鬥' },
   leaderLine: { en: 'Leader: {name} — {desc}', zh: '隊長技：{name}——{desc}' },
-  floorPrefix: { en: 'Floor {n}', zh: '第 {n} 層' },
   combo: { en: '{n} Combo!', zh: '{n} 連擊！' },
   bigMatch: { en: 'Big Match!', zh: '大量消除！' },
   atkIn: { en: 'ATK in {n}', zh: '{n} 回合後攻擊' },
@@ -133,14 +132,6 @@ export const UI = {
   },
   outOfTurns: { en: 'Out of Turns', zh: '回合耗盡' },
   gameOver: { en: 'Game Over', zh: '戰敗' },
-  runFailed: { en: 'Run Failed...', zh: '爬塔失敗……' },
-  runComplete: { en: 'Run Complete!', zh: '爬塔完成！' },
-  currencyGain: { en: '+{n} 💎', zh: '+{n} 💎' },
-  statBattles: { en: 'Battles Won: {n}', zh: '勝利場數:{n}' },
-  statElites: { en: 'Elites Defeated: {n}', zh: '擊殺菁英:{n}' },
-  statFloors: { en: 'Floors Cleared: {n}', zh: '通過樓層:{n}' },
-  relicsLine: { en: 'Relics: {list}', zh: '聖物:{list}' },
-  none: { en: 'none', zh: '無' },
 
   // Gacha
   gachaTitle: { en: 'Gacha Summon', zh: '英雄召喚' },
@@ -168,32 +159,6 @@ export const UI = {
   },
   lvLabel: { en: 'Lv.{n}', zh: '等級 {n}' },
   cardStats: { en: 'ATK {a}   HP {h}', zh: '攻擊 {a}   生命 {h}' },
-
-  // Run map
-  runHeader: { en: 'Roguelike Tower — Floor {f} / {n}', zh: '爬塔試煉——第 {f}/{n} 層' },
-  runHp: { en: 'HP {a} / {b}', zh: '生命 {a} / {b}' },
-  relicsNone: { en: 'Relics: none yet', zh: '聖物:尚未取得' },
-  abandonRun: { en: 'Abandon Run', zh: '放棄本輪' },
-  abandonConfirm: { en: 'Really abandon? (click again)', zh: '確定放棄？（再點一次）' },
-  allyTag: { en: '+ally', zh: '+夥伴' },
-  makeCamp: { en: 'Make Camp', zh: '紮營' },
-  restOption: { en: 'Rest — heal 30% HP', zh: '休息——回復 30% 生命' },
-  restDesc: { en: "Restore 30% of your team's max HP.", zh: '回復隊伍最大生命的 30%。' },
-  trainOption: { en: 'Train — random ally +15% ATK/HP', zh: '訓練——隨機夥伴攻擊/生命 +15%' },
-  trainDesc: {
-    en: 'Permanently boosts one random team member for the rest of this run.',
-    zh: '隨機強化一名隊員，效果持續到本輪結束。',
-  },
-  restedToast: { en: 'Rested at the campfire. +{n} HP', zh: '在營火旁休息，回復 {n} 生命' },
-  trainedToast: { en: '{name} trained! +{a} ATK, +{h} HP', zh: '{name} 完成訓練！攻擊 +{a}、生命 +{h}' },
-  chooseRelic: { en: 'Choose a Relic', zh: '選擇聖物' },
-  recruitAlly: { en: 'Recruit an Ally', zh: '招募夥伴' },
-  recruitAllyFull: {
-    en: 'Recruit an Ally (replaces your last member)',
-    zh: '招募夥伴（將取代最後一名隊員）',
-  },
-  recruitDesc: { en: '{el} · HP {h} · ATK {a} · {skill}', zh: '{el}屬性．生命 {h}．攻擊 {a}．{skill}' },
-  skip: { en: 'Skip', zh: '跳過' },
 } satisfies Record<string, Entry>;
 
 export type UiKey = keyof typeof UI;
@@ -214,8 +179,6 @@ export function t(key: UiKey, params?: Record<string, string | number>): string 
 // Content names/sentences, keyed by canonical English text
 // ---------------------------------------------------------------------------
 
-const ELITE_PREFIX = 'Elite ';
-
 export const ZH_CONTENT: Record<string, string> = {
   // --- Level names ---
   'Sleepy Slime Path': '昏睡史萊姆小徑',
@@ -229,6 +192,8 @@ export const ZH_CONTENT: Record<string, string> = {
   'Slime Meadow': '史萊姆草原',
   "Slime Queen's Nest": '史萊姆女王之巢',
   'Slime King': '史萊姆王',
+  'Talon Pass': '利爪隘口',
+  'Aerie Ambush': '巢穴伏擊',
   "Dragon's Foothills": '巨龍山麓',
   "Dragon's Lair Entrance": '龍巢入口',
   'Ancient Dragon': '遠古巨龍',
@@ -256,8 +221,14 @@ export const ZH_CONTENT: Record<string, string> = {
     '在森林深處，史萊姆圍著某樣東西……或某個人，築起了巢穴。',
   'A towering Slime King rises from the nest, absorbing every lesser slime in its path.':
     '高聳的史萊姆王自巢中升起，吞噬沿途所有的小史萊姆。',
-  'Goblins, naga, slimes — three warbands, one truth: all of them were gathering tribute for something waking beneath the mountain.':
-    '哥布林、娜迦、史萊姆——三支戰團，一個真相：牠們都在為山底下甦醒中的存在蒐集貢品。',
+  'High above the other three fronts, harpies have claimed the mountain pass — their screeching cries send climbers reeling.':
+    '在其他三條戰線之上，鷹身女妖群佔據了山口——牠們的尖嘯讓攀登者步履踉蹌。',
+  'A storm-caller and her skirmisher escort turn the pass into a killing field, hope curdling into feathers.':
+    '風暴喚術者與她的遊擊護衛，將山口變成一片修羅場，希望化為滿地羽毛。',
+  'The Griffon Matriarch descends from her aerie — the mountain pass belongs to her, and she means to keep it.':
+    '獅鷲女王自巢穴俯衝而下——這座山口是她的領地，她絕不容侵犯。',
+  'Goblins, naga, slimes, harpies — four warbands, one truth: all of them were gathering tribute for something waking beneath the mountain.':
+    '哥布林、娜迦、史萊姆、鷹身女妖——四支戰團，一個真相：牠們都在為山底下甦醒中的存在蒐集貢品。',
   'Whelps circle the cave entrance, guarding the path to their sleeping parent.':
     '幼龍盤旋在洞口，守護著通往沉睡母龍的道路。',
   'The Ancient Dragon awakens. This is the fight your team was assembled for.':
@@ -268,9 +239,10 @@ export const ZH_CONTENT: Record<string, string> = {
   '🔥 The Goblin Uprising': '🔥 哥布林之亂',
   '🌊 The Drowned Tide': '🌊 沉淪之潮',
   '🌿 The Slime Outbreak': '🌿 史萊姆之災',
+  '🦅 The Skyward Talons': '🦅 天空利爪',
   "🐉 The Dragon's Return": '🐉 巨龍歸來',
 
-  // --- Enemy names (story levels + run grunts/bosses) ---
+  // --- Enemy names (story levels) ---
   Slime: '史萊姆',
   'Slime Scout': '史萊姆斥候',
   Goblin: '哥布林',
@@ -290,6 +262,10 @@ export const ZH_CONTENT: Record<string, string> = {
   'Slime Overlord': '史萊姆霸主',
   'Goblin Warlord': '哥布林戰爭領主',
   'Elder Dragon': '上古巨龍',
+  'Harpy Screecher': '尖嘯鷹身女妖',
+  'Harpy Skirmisher': '鷹身遊擊者',
+  'Harpy Stormcaller': '風暴鷹身女妖',
+  'Griffon Matriarch': '獅鷲女王',
 
   // --- Character names ---
   Firebrand: '烈焰劍士',
@@ -343,41 +319,15 @@ export const ZH_CONTENT: Record<string, string> = {
   Common: '普通',
   Rare: '稀有',
   SSR: 'SSR',
-
-  // --- Relics (name + description) ---
-  'Hourglass of Haste': '急速沙漏',
-  '+2s move time': '轉珠時間 +2 秒',
-  'Ember Sigil': '餘燼徽記',
-  'Fire damage x1.3': '火屬性傷害 1.3 倍',
-  'Tidal Charm': '潮汐護符',
-  'Water damage x1.3': '水屬性傷害 1.3 倍',
-  'Verdant Idol': '翠綠神像',
-  'Wood damage x1.3': '木屬性傷害 1.3 倍',
-  'Sun Fragment': '太陽碎片',
-  'Light damage x1.3': '光屬性傷害 1.3 倍',
-  'Moon Fragment': '月亮碎片',
-  'Dark damage x1.3': '暗屬性傷害 1.3 倍',
-  'Blessed Chalice': '祝福聖杯',
-  'Heart healing x1.5': '心珠回復 1.5 倍',
-  'Field Rations': '行軍口糧',
-  'Heal 15% max HP after each battle': '每場戰鬥後回復 15% 最大生命',
-  'War Banner': '戰爭旗幟',
-  'All damage x1.15': '全體傷害 1.15 倍',
-  "Giant's Belt": '巨人腰帶',
-  'Max HP +20%': '最大生命 +20%',
 };
 
 /**
- * Translates a content string (level/enemy/character/skill/relic name, story
+ * Translates a content string (level/enemy/character/skill name, story
  * sentence...) for display. Returns the input untouched in English mode or
  * when no translation exists — so internal identity (emoji lookups, saves)
- * always keys on the English original. Handles run.ts's composed
- * "Elite <name>" prefix.
+ * always keys on the English original.
  */
 export function tr(text: string): string {
   if (getLang() !== 'zh') return text;
-  if (text.startsWith(ELITE_PREFIX)) {
-    return `精英‧${tr(text.slice(ELITE_PREFIX.length))}`;
-  }
   return ZH_CONTENT[text] ?? text;
 }

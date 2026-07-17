@@ -27,16 +27,13 @@ const THEMES: BattleTheme[] = [
   { top: 0x1d0f33, bottom: 0x10131d, ambient: 0x9b59b6 },
 ];
 
-export function themeForChapter(chapterIndex: number): BattleTheme {
-  return THEMES[Math.max(0, Math.min(chapterIndex, THEMES.length - 1))];
-}
-
-/** Per-campaign-branch backdrops: fire=embers, water=deep sea, wood/prologue=meadow, final=dragon lair. */
+/** Per-campaign-branch backdrops: fire=embers, water=deep sea, wood/prologue=meadow, sky=high altitude, final=dragon lair. */
 const BRANCH_THEMES: Record<string, BattleTheme> = {
   prologue: THEMES[0],
   fire: THEMES[1],
   water: { top: 0x0b2338, bottom: 0x10131d, ambient: 0x3498db },
   wood: THEMES[0],
+  sky: { top: 0x1a2b4a, bottom: 0x10131d, ambient: 0xecf0f1 },
   final: THEMES[2],
 };
 
