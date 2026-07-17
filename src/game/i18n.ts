@@ -79,12 +79,19 @@ export const UI = {
 
   // Level-select map
   mapSubtitle: {
-    en: 'Clear all four fronts — then face the Ancient Dragon',
-    zh: '攻克四條戰線——再迎戰遠古巨龍',
+    en: 'Clear all four fronts — then face {boss}',
+    zh: '攻克四條戰線——再迎戰{boss}',
   },
   finalGate: { en: 'Clear all four branches to unlock', zh: '全破四條支線後解鎖' },
+  navChapters: { en: '← Chapters', zh: '← 章節' },
   navGacha: { en: 'Gacha', zh: '英雄召喚' },
   navCollection: { en: 'Collection / Team', zh: '圖鑑／隊伍' },
+
+  // Chapter-select screen
+  chapterSelectSubtitle: { en: 'Choose your chapter', zh: '選擇章節' },
+  chapterLocked: { en: 'Chapter {n} — Locked', zh: '第 {n} 章——未解鎖' },
+  chapterEnter: { en: 'Enter ▶', zh: '進入 ▶' },
+  chapterLockedHint: { en: 'Clear the previous chapter to unlock', zh: '通過前一章才能解鎖' },
 
   // Branch short tags for the battle header (branchTag + position, e.g. "🔥 2/3")
   'branchTag.prologue': { en: 'Prologue', zh: '序章' },
@@ -93,6 +100,18 @@ export const UI = {
   'branchTag.wood': { en: '🌿', zh: '🌿' },
   'branchTag.sky': { en: '🦅', zh: '🦅' },
   'branchTag.final': { en: '🐉', zh: '🐉' },
+  'branchTag.ch2-prologue': { en: 'Prologue', zh: '序章' },
+  'branchTag.ch2-fire': { en: '🔥', zh: '🔥' },
+  'branchTag.ch2-water': { en: '🌊', zh: '🌊' },
+  'branchTag.ch2-wood': { en: '🌿', zh: '🌿' },
+  'branchTag.ch2-dark': { en: '💀', zh: '💀' },
+  'branchTag.ch2-final': { en: '🕊️', zh: '🕊️' },
+  'branchTag.ch3-prologue': { en: 'Prologue', zh: '序章' },
+  'branchTag.ch3-fire': { en: '🔥', zh: '🔥' },
+  'branchTag.ch3-water': { en: '🌊', zh: '🌊' },
+  'branchTag.ch3-wood': { en: '🌿', zh: '🌿' },
+  'branchTag.ch3-light': { en: '✨', zh: '✨' },
+  'branchTag.ch3-final': { en: '🌑', zh: '🌑' },
 
   // Battle
   beginBattle: { en: 'Begin Battle', zh: '開始戰鬥' },
@@ -267,6 +286,151 @@ export const ZH_CONTENT: Record<string, string> = {
   'Harpy Stormcaller': '風暴鷹身女妖',
   'Griffon Matriarch': '獅鷲女王',
 
+  // --- Chapter titles ---
+  'Chapter 1 · The Dragon Stirs': '第一章・巨龍甦醒',
+  'Chapter 2 · The Shattered Frontier': '第二章・破碎邊境',
+  "Chapter 3 · Realm's End": '第三章・終焉降臨',
+
+  // --- Chapter 2: level names ---
+  Aftershock: '餘震',
+  "Refugees' Warning": '難民的警訊',
+  'Ashfolk Raiders': '灰燼氏族襲擊者',
+  'Cinder Forge': '餘燼熔爐',
+  'Salamander Warlord': '蠑螈戰爭領主',
+  'Frostfen Serpent': '霜沼巨蟒',
+  'Glacial Warden': '冰川守衛',
+  'Frost Leviathan': '寒霜利維坦',
+  'Blightling Swarm': '疫斑蟲群',
+  'Fungal Broodmother': '菌絲孵育母',
+  'Blightwood Colossus': '疫木巨像',
+  'Crypt Wight': '墓穴屍鬼',
+  'Bone Conjurer': '白骨咒師',
+  'Lich Chancellor': '巫妖大臣',
+  "Seraph's Descent": '熾天使的降臨',
+  "Seraph's Gate": '熾天使之門',
+  'The Sundered Seraph': '破碎的熾天使',
+
+  // --- Chapter 2: level stories ---
+  "The Ancient Dragon's fall cracked the mountain to its roots, opening roads no one ever dared to walk.":
+    '遠古巨龍的殞落震裂了山脈的根基，開出了無人敢走的舊路。',
+  'Survivors flee the cracked roads, warning of something vast stirring in the dark beneath.':
+    '倖存者逃離裂開的道路，警告著黑暗深處有巨大的存在正在甦醒。',
+  "Ashfolk raiders pour out of the cinder wastes, drawn by the mountain's new wounds.":
+    '灰燼氏族的襲擊者自餘燼荒原湧出，被山脈的新傷口吸引而來。',
+  'A forge-warden stokes the cinder flats white-hot, daring you to cross.':
+    '熔爐守衛將餘燼平原燒得熾白，挑釁你踏足其中。',
+  'The Salamander Warlord commands the cinder wastes — his charge could level a hillside.':
+    '蠑螈戰爭領主統領著餘燼荒原——他的衝鋒足以夷平一座山丘。',
+  'A serpent of black ice slithers beneath the frostmere, its bite numbing more than flesh.':
+    '一條黑冰巨蟒潛行於霜沼之下，牠的咬噬麻痺的不只是血肉。',
+  'The glacial warden freezes everything it touches — including the gems beneath your fingers.':
+    '冰川守衛凍結一切牠觸及的事物——包括你指尖下的符石。',
+  "The Frost Leviathan surfaces from the deep — its hide shrugs off blows, and its bite never stops aching.":
+    '寒霜利維坦自深淵浮現——牠的鱗皮不畏打擊，牠的咬噬永不停止作痛。',
+  "A swarm of blightlings creeps out from the rot at the forest's heart.":
+    '一群疫斑蟲自森林核心的腐朽中爬出。',
+  'The Fungal Broodmother spores the air thick, turning hope itself to rot.':
+    '菌絲孵育母讓孢子瀰漫空氣，將希望本身化為腐朽。',
+  "A colossus of fused rot and root rises from the broodmother's nest, ancient and furious.":
+    '一尊融合了腐朽與根鬚的巨像自孵育母的巢穴升起，古老而狂怒。',
+  'A wight claws its way out of the hollow crypt beneath the shattered peak.':
+    '一名屍鬼自破碎山峰下的空洞墓穴中爬出。',
+  "A bone conjurer chants over the crypt's deepest vault, and the dead answer.":
+    '白骨咒師在墓穴最深的墓室吟唱，死者應聲而起。',
+  'The Lich Chancellor has ruled the hollow crypt for a thousand years — and means to rule it a thousand more.':
+    '巫妖大臣統治這座空洞墓穴已有千年——他打算再統治一千年。',
+  'Four warbands, one truth: all of them were tribute-bearers for a seraph shattered and fallen from grace.':
+    '四支戰團，一個真相：牠們都是為一位墮落破碎的熾天使獻上貢品的使者。',
+  "Wraiths of broken light guard the gate, the seraph's grief made manifest.":
+    '破碎之光的幽靈守護著大門，那是熾天使悲慟的具現。',
+  'The Sundered Seraph awakens in full — not evil, only broken, and broken things lash out hardest.':
+    '破碎的熾天使完全甦醒——牠並非邪惡，只是破碎，而破碎之物的反擊最為猛烈。',
+
+  // --- Chapter 2: branch titles ---
+  '🔥 Cinder Wastes': '🔥 餘燼荒原',
+  '🌊 Frostmere Deep': '🌊 霜沼深淵',
+  '🌿 Blightwood': '🌿 疫木林',
+  '💀 Hollow Crypt': '💀 空洞墓穴',
+  '🕊️ The Sundered Seraph': '🕊️ 破碎的熾天使',
+
+  // --- Chapter 2: enemy names ---
+  'Tremor Whelp': '震顫幼龍',
+  'Tremor Stalker': '震顫潛行者',
+  'Ashfolk Skirmisher': '灰燼氏族遊擊兵',
+  'Forge Warden': '熔爐守衛',
+  Blightling: '疫斑蟲',
+  'Fallen Seraph Herald': '墮落熾天使的傳令',
+  'Seraph Wraith': '熾天使幽靈',
+
+  // --- Chapter 3: level names ---
+  "Seraph's Ashes": '熾天使之灰',
+  'Whispers Below': '深處的低語',
+  'Demonic Stoker': '魔煽爐者',
+  'Wrathforge Sentinel': '怒焰哨衛',
+  'Archdemon of Wrath': '怒焰大魔王',
+  'Trench Stalker': '深塹潛行者',
+  'Abyssal Warden': '深淵守衛',
+  'Kraken Sovereign': '海妖至尊',
+  'Thornspire Sentinel': '荊棘塔哨衛',
+  'Root Warden': '根鬚守衛',
+  'The Thornspire Colossus': '荊棘塔巨像',
+  'Bastion Watcher': '堡壘守望者',
+  'Choir of Ash': '灰燼詩班',
+  'Archon of the Bastion': '堡壘執政官',
+  'The Devourer Stirs': '吞噬者甦醒',
+  'Gates of Oblivion': '虛無之門',
+  'The Devourer Below': '深處的吞噬者',
+
+  // --- Chapter 3: level stories ---
+  'Ash from the sundered seraph drifts down into caverns no map remembers, and something below breathes it in.':
+    '破碎熾天使的餘灰飄落進無人記載的洞穴，深處有某物將其吸入。',
+  'Voices rise from the deepest dark, whispering a name the world was never meant to speak.':
+    '聲音自最深的黑暗中升起，低語著一個世界從未該被說出的名字。',
+  "Demons stoke a forge older than the mountain itself, feeding it with the realm's dying light.":
+    '惡魔們煽動著一座比山脈本身更古老的熔爐，以這片大地垂死的光芒餵養它。',
+  "A sentinel of living flame guards the forge's heart, and it does not tire.":
+    '一名活焰哨衛守護著熔爐的核心，牠永不疲倦。',
+  'The Archdemon of Wrath has stoked this forge since before the first dragon slept.':
+    '怒焰大魔王自第一頭巨龍沉睡之前，便煽動著這座熔爐。',
+  'Something vast and patient stalks the abyssal trench, venom trailing in its wake.':
+    '某個龐大而耐心的存在潛行於深淵塹溝，毒液隨其而過。',
+  'The abyssal warden crushes stone into glass with every pulse of pressure it throws.':
+    '深淵守衛每一次釋放的壓力波都能將岩石壓碎成玻璃。',
+  'The Kraken Sovereign rules the trench absolute — nothing that sinks this far ever rises again.':
+    '海妖至尊絕對統治著深塹——沒有任何沉得這麼深的事物能再度浮起。',
+  "A sentinel of living thorn guards the spire's roots, older than the forest around it.":
+    '一名活荊棘哨衛守護著塔的根基，比周遭的森林更為古老。',
+  "The root warden turns even hope to timber, weaving it into the spire's endless growth.":
+    '根鬚守衛將希望也化為木材，編織進高塔無盡的生長之中。',
+  'The Thornspire Colossus IS the spire — every thorn on the mountain is a piece of it.':
+    '荊棘塔巨像本身就是那座高塔——山上的每一根荊棘都是牠的一部分。',
+  'A watcher of the seraphic bastion still stands guard, loyal to a seraph long since fallen.':
+    '熾天堡壘的守望者仍堅守崗位，忠於一位早已殞落的熾天使。',
+  'A choir that once sang hymns of light now sings only of ash.':
+    '曾經歌詠光明聖歌的詩班，如今只吟唱灰燼之歌。',
+  'The Archon of the Bastion has judged every soul that reached this height — and found them all wanting.':
+    '堡壘執政官審判過每一個抵達此地的靈魂——無一不被判定為不配。',
+  'Demons, deep horrors, living thorn, fallen light — four guardians, one purpose: keep the Devourer asleep. They have failed.':
+    '惡魔、深淵恐怖、活荊棘、墮落之光——四位守護者，同一個使命：讓吞噬者繼續沉睡。牠們失敗了。',
+  'The gates of oblivion stand open at last, and the dark beyond has a hunger with no bottom.':
+    '虛無之門終於敞開，門後的黑暗有著無底的飢餓。',
+  'The Devourer Below wakes at last — the hunger beneath every tribute, every war, every fallen seraph. This is the last fight.':
+    '深處的吞噬者終於甦醒——那是每一份貢品、每一場戰爭、每一位墮落熾天使背後的飢餓。這是最後一戰。',
+
+  // --- Chapter 3: branch titles ---
+  '🔥 Forge of Wrath': '🔥 怒焰熔爐',
+  '🌊 Abyssal Trench': '🌊 深淵塹溝',
+  '🌿 Thornspire': '🌿 荊棘塔',
+  '✨ Seraphic Bastion': '✨ 熾天堡壘',
+  '🌑 The Devourer Below': '🌑 深處的吞噬者',
+
+  // --- Chapter 3: enemy names ---
+  'Ash-Touched Revenant': '染灰的亡魂',
+  'Whispering Husk': '低語的軀殼',
+  'Choir Cantor': '詩班詠者',
+  'Devourer Spawn': '吞噬者之裔',
+  'Oblivion Gatekeeper': '虛無守門人',
+
   // --- Character names ---
   Firebrand: '烈焰劍士',
   'Aqua Knight': '碧水騎士',
@@ -300,10 +464,26 @@ export const ZH_CONTENT: Record<string, string> = {
   'Sovereign Flame': '主宰之炎',
   'Umbral Pact': '幽冥契約',
   'Radiant Ascendancy': '聖光凌駕',
+  'Kindling Spirit': '火種之魂',
+  'Ripple Ward': '漣漪守護',
+  'Budding Vigor': '萌芽活力',
+  'Ticking Mischief': '滴答惡作劇',
+  'Tidal Command': '潮汐號令',
+  'Verdant Vanguard': '翠綠先鋒',
+  'Solar Authority': '太陽權柄',
+  'Umbral Vanguard': '幽冥先鋒',
   'Fire attribute damage x1.5': '火屬性傷害 1.5 倍',
   'Fire attribute damage x2': '火屬性傷害 2 倍',
   'x2 damage at 5+ combo': '5 連擊以上傷害 2 倍',
   'Light attribute damage x1.5': '光屬性傷害 1.5 倍',
+  'Fire attribute damage x1.2': '火屬性傷害 1.2 倍',
+  'Water attribute damage x1.2': '水屬性傷害 1.2 倍',
+  'Wood attribute damage x1.2': '木屬性傷害 1.2 倍',
+  'x1.3 damage at 3+ combo': '3 連擊以上傷害 1.3 倍',
+  'Water attribute damage x1.4': '水屬性傷害 1.4 倍',
+  'Wood attribute damage x1.4': '木屬性傷害 1.4 倍',
+  'Light attribute damage x1.4': '光屬性傷害 1.4 倍',
+  'x1.6 damage at 4+ combo': '4 連擊以上傷害 1.6 倍',
 
   // --- Elements & rarity ---
   Fire: '火',

@@ -18,6 +18,12 @@ const GACHA_ONLY_CHARACTERS: Character[] = [
     skillCooldownTurns: 3,
     skillEffect: 'damage',
     skillPower: 60,
+    leaderSkill: {
+      name: 'Kindling Spirit',
+      description: 'Fire attribute damage x1.2',
+      multiplier: 1.2,
+      element: 0,
+    },
   },
   {
     id: 'tide-sprite',
@@ -31,6 +37,12 @@ const GACHA_ONLY_CHARACTERS: Character[] = [
     skillEffect: 'convert',
     skillConvertFrom: 1, // Water
     skillConvertTo: HEART_TYPE, // Heart
+    leaderSkill: {
+      name: 'Ripple Ward',
+      description: 'Water attribute damage x1.2',
+      multiplier: 1.2,
+      element: 1,
+    },
   },
   {
     id: 'sprout-scout',
@@ -42,6 +54,12 @@ const GACHA_ONLY_CHARACTERS: Character[] = [
     skillName: 'Cleansing Growth',
     skillCooldownTurns: 4,
     skillEffect: 'cleanse',
+    leaderSkill: {
+      name: 'Budding Vigor',
+      description: 'Wood attribute damage x1.2',
+      multiplier: 1.2,
+      element: 2,
+    },
   },
   {
     id: 'chrono-imp',
@@ -54,6 +72,12 @@ const GACHA_ONLY_CHARACTERS: Character[] = [
     skillCooldownTurns: 4,
     skillEffect: 'extendTime',
     skillPower: 3000, // +3s move time
+    leaderSkill: {
+      name: 'Ticking Mischief',
+      description: 'x1.3 damage at 3+ combo',
+      multiplier: 1.3,
+      minCombo: 3,
+    },
   },
   {
     id: 'phoenix-empress',

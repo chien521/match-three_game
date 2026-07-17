@@ -79,7 +79,7 @@ export class GachaScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
-    backButton.on('pointerdown', () => this.scene.start('LevelSelectScene'));
+    backButton.on('pointerdown', () => this.scene.start('ChapterSelectScene'));
 
     // Restart is safe mid-reveal: pull results are written to playerData the
     // moment the button is pressed, before any card animation plays.

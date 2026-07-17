@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { BRANCHES, LEVELS, branchForLevel, levelById, nextLevelIdInBranch } from './levels';
+import {
+  BRANCHES,
+  CHAPTERS,
+  LEVELS,
+  branchForLevel,
+  chapterForLevel,
+  isChapterFinale,
+  levelById,
+  nextLevelIdInBranch,
+} from './levels';
 import { GEM_TYPE_COUNT } from './constants';
 
 describe('campaign graph', () => {
@@ -44,6 +53,26 @@ describe('campaign graph', () => {
     );
   });
 
+  it("chapter 2's final gate requires exactly its four branch bosses", () => {
+    expect(new Set(levelById('ch2-final-1')?.unlockRequires)).toEqual(
+      new Set(['ch2-fire-3', 'ch2-water-3', 'ch2-wood-3', 'ch2-dark-3']),
+    );
+  });
+
+  it("chapter 3's final gate requires exactly its four branch bosses", () => {
+    expect(new Set(levelById('ch3-final-1')?.unlockRequires)).toEqual(
+      new Set(['ch3-fire-3', 'ch3-water-3', 'ch3-wood-3', 'ch3-light-3']),
+    );
+  });
+
+  it("chapter 2's prologue is gated behind chapter 1's final boss", () => {
+    expect(levelById('ch2-prologue-1')?.unlockRequires).toEqual(['final-3']);
+  });
+
+  it("chapter 3's prologue is gated behind chapter 2's final boss", () => {
+    expect(levelById('ch3-prologue-1')?.unlockRequires).toEqual(['ch2-final-3']);
+  });
+
   it('every level belongs to exactly one branch, and branches only name real levels', () => {
     const seen = new Map<string, number>();
     for (const branch of BRANCHES) {
@@ -71,6 +100,36 @@ describe('campaign graph', () => {
     expect(nextLevelIdInBranch('fire-3')).toBeNull(); // branch boss: back to the map
     expect(nextLevelIdInBranch('final-3')).toBeNull();
     expect(nextLevelIdInBranch('nonexistent')).toBeNull();
+  });
+});
+
+describe('chapters', () => {
+  it('every branch belongs to exactly one chapter', () => {
+    const seen = new Map<string, number>();
+    for (const chapter of CHAPTERS) {
+      for (const id of chapter.branchIds) {
+        seen.set(id, (seen.get(id) ?? 0) + 1);
+      }
+    }
+    for (const branch of BRANCHES) {
+      expect(seen.get(branch.id), `${branch.id} missing from CHAPTERS`).toBe(1);
+    }
+  });
+
+  it('chapterForLevel resolves a level to its chapter', () => {
+    expect(chapterForLevel('fire-1')?.id).toBe('ch1');
+    expect(chapterForLevel('ch2-water-2')?.id).toBe('ch2');
+    expect(chapterForLevel('ch3-final-3')?.id).toBe('ch3');
+    expect(chapterForLevel('nonexistent')).toBeUndefined();
+  });
+
+  it('isChapterFinale is true only for each chapter\'s last final-branch level', () => {
+    expect(isChapterFinale('final-3')).toBe(true);
+    expect(isChapterFinale('ch2-final-3')).toBe(true);
+    expect(isChapterFinale('ch3-final-3')).toBe(true);
+    expect(isChapterFinale('final-2')).toBe(false);
+    expect(isChapterFinale('fire-3')).toBe(false);
+    expect(isChapterFinale('ch2-prologue-1')).toBe(false);
   });
 });
 

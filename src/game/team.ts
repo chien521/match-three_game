@@ -121,6 +121,12 @@ export const DEFAULT_TEAM: Character[] = [
     skillCooldownTurns: 4,
     skillEffect: 'heal',
     skillPower: 80,
+    leaderSkill: {
+      name: 'Tidal Command',
+      description: 'Water attribute damage x1.4',
+      multiplier: 1.4,
+      element: 1,
+    },
   },
   {
     id: 'woodland-archer',
@@ -134,6 +140,12 @@ export const DEFAULT_TEAM: Character[] = [
     skillEffect: 'shieldSelf',
     skillShieldReduction: 0.4,
     skillShieldTurns: 3,
+    leaderSkill: {
+      name: 'Verdant Vanguard',
+      description: 'Wood attribute damage x1.4',
+      multiplier: 1.4,
+      element: 2,
+    },
   },
   {
     id: 'solaris',
@@ -147,6 +159,12 @@ export const DEFAULT_TEAM: Character[] = [
     skillEffect: 'teamBuff',
     skillBuffMultiplier: 1.6,
     skillBuffTurns: 3,
+    leaderSkill: {
+      name: 'Solar Authority',
+      description: 'Light attribute damage x1.4',
+      multiplier: 1.4,
+      element: 3,
+    },
   },
   {
     id: 'nightshade',
@@ -159,6 +177,12 @@ export const DEFAULT_TEAM: Character[] = [
     skillCooldownTurns: 4,
     skillEffect: 'stunEnemy',
     skillStunTurns: 2,
+    leaderSkill: {
+      name: 'Umbral Vanguard',
+      description: 'x1.6 damage at 4+ combo',
+      multiplier: 1.6,
+      minCombo: 4,
+    },
   },
 ];
 

@@ -78,7 +78,7 @@ export class CollectionScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
     backButton.on('pointerdown', () => {
       savePlayerData(setActiveTeam(loadPlayerData(), this.activeTeamIds));
-      this.scene.start('LevelSelectScene');
+      this.scene.start('ChapterSelectScene');
     });
 
     this.redraw();

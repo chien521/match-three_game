@@ -8,6 +8,7 @@ import {
 } from './team';
 import type { Character } from './team';
 import { HEART_TYPE } from './constants';
+import { CHARACTER_POOL } from './characterPool';
 
 const fireCharacter: Character = {
   id: 'test-fire',
@@ -180,5 +181,29 @@ describe('computeHealAmount', () => {
     // 4 * HEAL_PER_GEM(20) * combo(1) * groupBonus(1) = 80.
     const heal = computeHealAmount([{ element: HEART_TYPE, size: 3, enhancedCount: 2 }], 1);
     expect(heal).toBe(80);
+  });
+});
+
+describe('leader skills', () => {
+  it('every character in the pool has a unique leader skill', () => {
+    for (const character of CHARACTER_POOL) {
+      expect(character.leaderSkill, `${character.name} is missing a leaderSkill`).toBeDefined();
+    }
+    const names = CHARACTER_POOL.map((c) => c.leaderSkill?.name);
+    expect(new Set(names).size).toBe(names.length);
+  });
+
+  it('rarer characters have stronger leader-skill multipliers, on average', () => {
+    const avgByRarity = (rarity: string) => {
+      const multipliers = CHARACTER_POOL.filter((c) => c.rarity === rarity).map(
+        (c) => c.leaderSkill!.multiplier,
+      );
+      return multipliers.reduce((a, b) => a + b, 0) / multipliers.length;
+    };
+    const common = avgByRarity('Common');
+    const rare = avgByRarity('Rare');
+    const ssr = avgByRarity('SSR');
+    expect(common).toBeLessThan(rare);
+    expect(rare).toBeLessThan(ssr);
   });
 });

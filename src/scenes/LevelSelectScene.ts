@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
-import { BRANCHES, branchForLevel, levelById } from '../game/levels';
-import type { BranchInfo, LevelConfig } from '../game/levels';
+import { BRANCHES, CHAPTERS, branchForLevel, levelById } from '../game/levels';
+import type { BranchInfo, ChapterInfo, LevelConfig } from '../game/levels';
 import { enemyEmoji } from '../game/enemyArt';
 import { isLevelUnlocked, loadPlayerData } from '../game/playerData';
 import type { PlayerData } from '../game/playerData';
@@ -9,19 +9,7 @@ import { lighten } from './gemArt';
 import { themeForBranch } from './battleFx';
 import { drawLanguageToggle } from './langToggle';
 
-/** Parallel (non-'single') branches, in map order — however many there are,
- * evenly spread across the width by columnX() below. */
-const PARALLEL_BRANCHES = BRANCHES.filter((b) => b.column !== 'single');
 const COLUMN_MARGIN = 120;
-
-/** x position for a branch column: 'single' sits dead center; a parallel
- * branch's index is spread evenly across the map width between the margins. */
-function columnX(column: BranchInfo['column']): number {
-  if (column === 'single') return 400;
-  if (PARALLEL_BRANCHES.length <= 1) return 400;
-  const usable = 800 - COLUMN_MARGIN * 2;
-  return COLUMN_MARGIN + (usable * column) / (PARALLEL_BRANCHES.length - 1);
-}
 
 /** Bottom-to-top node y positions: prologue at the bottom, branches fan out, final chapter converges on top. */
 const PROLOGUE_YS = [706, 640];
@@ -29,14 +17,47 @@ const BRANCH_YS = [564, 492, 420];
 const FINAL_YS = [330, 256, 182];
 
 /**
- * Campaign world map: a prologue path that forks into several parallel
- * elemental branches (playable in any order), converging into the final
- * chapter once every branch boss is down. Cleared levels show their
- * best star rating; every currently-reachable level pulses.
+ * Campaign world map for a single chapter: a prologue path that forks into
+ * several parallel elemental branches (playable in any order), converging
+ * into that chapter's final boss once every branch boss is down. Cleared
+ * levels show their best star rating; every currently-reachable level
+ * pulses. Chapters unlock sequentially (see game/levels.ts's CHAPTERS) and
+ * are picked from ChapterSelectScene, which passes `{ chapterId }` in.
  */
 export class LevelSelectScene extends Phaser.Scene {
+  private chapter!: ChapterInfo;
+  /** This chapter's branches, in map order: [prologue, ...parallel, final]. */
+  private chapterBranches: BranchInfo[] = [];
+  /** Parallel (non-'single') branches within this chapter, for even x-spacing. */
+  private parallelBranches: BranchInfo[] = [];
+
   constructor() {
     super('LevelSelectScene');
+  }
+
+  init(data: { chapterId?: string }): void {
+    this.chapter = CHAPTERS.find((c) => c.id === data?.chapterId) ?? CHAPTERS[0];
+    this.chapterBranches = this.chapter.branchIds
+      .map((id) => BRANCHES.find((b) => b.id === id))
+      .filter((b): b is BranchInfo => b !== undefined);
+    this.parallelBranches = this.chapterBranches.filter((b) => b.column !== 'single');
+  }
+
+  /** This chapter's prologue-style (first 'single') and final-style (last 'single') branches. */
+  private get prologueBranch(): BranchInfo | undefined {
+    return this.chapterBranches.find((b) => b.column === 'single');
+  }
+  private get finalBranch(): BranchInfo | undefined {
+    return [...this.chapterBranches].reverse().find((b) => b.column === 'single');
+  }
+
+  /** x position for a branch column: 'single' sits dead center; a parallel
+   * branch's index is spread evenly across the map width between the margins. */
+  private columnX(column: BranchInfo['column']): number {
+    if (column === 'single') return 400;
+    if (this.parallelBranches.length <= 1) return 400;
+    const usable = 800 - COLUMN_MARGIN * 2;
+    return COLUMN_MARGIN + (usable * column) / (this.parallelBranches.length - 1);
   }
 
   create(): void {
@@ -47,14 +68,22 @@ export class LevelSelectScene extends Phaser.Scene {
     drawLanguageToggle(this, 20, 18, () => this.scene.restart());
   }
 
+  /** Which Y-array a branch uses: the chapter's first 'single' branch is the
+   * prologue-style anchor (bottom), the last is the final-style anchor (top),
+   * everything else is a parallel branch (middle band). */
+  private ysFor(branch: BranchInfo): number[] {
+    if (branch.id === this.prologueBranch?.id) return PROLOGUE_YS;
+    if (branch.id === this.finalBranch?.id) return FINAL_YS;
+    return BRANCH_YS;
+  }
+
   /** Screen position of a level's node, derived from its branch column + position. */
   private nodePosition(levelId: string): { x: number; y: number } {
     const branch = branchForLevel(levelId);
     if (!branch) return { x: 400, y: 400 };
     const index = branch.levelIds.indexOf(levelId);
-    const x = columnX(branch.column);
-    const ys =
-      branch.id === 'prologue' ? PROLOGUE_YS : branch.id === 'final' ? FINAL_YS : BRANCH_YS;
+    const x = this.columnX(branch.column);
+    const ys = this.ysFor(branch);
     return { x, y: ys[index] ?? 400 };
   }
 
@@ -67,16 +96,16 @@ export class LevelSelectScene extends Phaser.Scene {
     // Soft tinted zones: one vertical band per elemental branch column, plus
     // horizontal bands for the prologue (bottom) and final chapter (top).
     const bands = this.add.graphics();
-    for (const branch of BRANCHES) {
+    for (const branch of this.chapterBranches) {
       const theme = themeForBranch(branch.id);
       if (branch.column === 'single') {
-        const ys = branch.id === 'prologue' ? PROLOGUE_YS : FINAL_YS;
+        const ys = this.ysFor(branch);
         const top = Math.min(...ys) - 48;
         const bottom = Math.max(...ys) + 48;
         bands.fillGradientStyle(theme.top, theme.top, 0x10131d, 0x10131d, 0.45, 0.45, 0.1, 0.1);
         bands.fillRect(0, top, width, bottom - top);
       } else {
-        const x = columnX(branch.column);
+        const x = this.columnX(branch.column);
         bands.fillGradientStyle(theme.top, theme.top, 0x10131d, 0x10131d, 0.5, 0.5, 0.12, 0.12);
         bands.fillRoundedRect(x - 80, BRANCH_YS[2] - 44, 160, BRANCH_YS[0] - BRANCH_YS[2] + 88, 18);
       }
@@ -84,8 +113,8 @@ export class LevelSelectScene extends Phaser.Scene {
       // A few drifting motes per zone, tinted to the branch.
       for (let i = 0; i < 4; i++) {
         const zoneX =
-          branch.column === 'single' ? Math.random() * width : columnX(branch.column) - 70 + Math.random() * 140;
-        const ys = branch.id === 'prologue' ? PROLOGUE_YS : branch.id === 'final' ? FINAL_YS : BRANCH_YS;
+          branch.column === 'single' ? Math.random() * width : this.columnX(branch.column) - 70 + Math.random() * 140;
+        const ys = this.ysFor(branch);
         const zoneY = Math.min(...ys) - 30 + Math.random() * (Math.max(...ys) - Math.min(...ys) + 60);
         const mote = this.add.circle(zoneX, zoneY, 1.5 + Math.random() * 2, lighten(theme.ambient, 0.3), 0.18);
         this.tweens.add({
@@ -106,8 +135,8 @@ export class LevelSelectScene extends Phaser.Scene {
 
   private drawHeader(): void {
     this.add
-      .text(this.scale.width / 2, 42, '轉珠 Match-3', {
-        fontSize: '38px',
+      .text(this.scale.width / 2, 38, '轉珠 Match-3', {
+        fontSize: '34px',
         color: '#ffffff',
         fontStyle: 'bold',
         stroke: '#000000',
@@ -116,8 +145,19 @@ export class LevelSelectScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(this.scale.width / 2, 78, t('mapSubtitle'), {
-        fontSize: '14px',
+      .text(this.scale.width / 2, 66, tr(this.chapter.title), {
+        fontSize: '16px',
+        color: '#ffe066',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5);
+
+    const finalBranch = this.finalBranch;
+    const finalLevel = finalBranch ? levelById(finalBranch.levelIds[finalBranch.levelIds.length - 1]) : undefined;
+    const bossName = finalLevel?.enemies[finalLevel.enemies.length - 1]?.name ?? '';
+    this.add
+      .text(this.scale.width / 2, 88, t('mapSubtitle', { boss: tr(bossName) }), {
+        fontSize: '13px',
         color: '#9aa3c7',
       })
       .setOrigin(0.5);
@@ -140,7 +180,7 @@ export class LevelSelectScene extends Phaser.Scene {
     const data = loadPlayerData();
 
     this.drawConnections(data);
-    for (const branch of BRANCHES) {
+    for (const branch of this.chapterBranches) {
       for (const levelId of branch.levelIds) {
         const level = levelById(levelId);
         if (level) this.drawNode(data, branch, level);
@@ -148,7 +188,7 @@ export class LevelSelectScene extends Phaser.Scene {
     }
   }
 
-  /** All path segments: within-branch links, the 3-way fork after the prologue, and the 3-way convergence into the final chapter. */
+  /** All path segments: within-branch links, the fork after the prologue, and the convergence into the final branch. */
   private drawConnections(data: PlayerData): void {
     const lines = this.add.graphics();
     const drawSegment = (fromId: string, toId: string, tint: number) => {
@@ -159,17 +199,19 @@ export class LevelSelectScene extends Phaser.Scene {
       lines.lineBetween(from.x, from.y, to.x, to.y);
     };
 
-    for (const branch of BRANCHES) {
+    for (const branch of this.chapterBranches) {
       const tint = lighten(themeForBranch(branch.id).ambient, 0);
       for (let i = 0; i < branch.levelIds.length - 1; i++) {
         drawSegment(branch.levelIds[i], branch.levelIds[i + 1], tint);
       }
     }
 
-    const prologueEnd = 'prologue-2';
-    const finalStart = 'final-1';
-    for (const branch of BRANCHES) {
-      if (branch.column === 'single') continue;
+    const prologueBranch = this.prologueBranch;
+    const finalBranch = this.finalBranch;
+    if (!prologueBranch || !finalBranch) return;
+    const prologueEnd = prologueBranch.levelIds[prologueBranch.levelIds.length - 1];
+    const finalStart = finalBranch.levelIds[0];
+    for (const branch of this.parallelBranches) {
       const tint = themeForBranch(branch.id).ambient;
       drawSegment(prologueEnd, branch.levelIds[0], tint);
       drawSegment(branch.levelIds[branch.levelIds.length - 1], finalStart, tint);
@@ -183,7 +225,7 @@ export class LevelSelectScene extends Phaser.Scene {
     const stars = data.levelStars[level.id] ?? 0;
     const isFrontier = unlocked && stars === 0;
     const isBossLevel = level.enemies.some((e) => e.boss);
-    const isFinalGate = level.id === 'final-1' && !unlocked;
+    const isFinalGate = level.id === this.finalBranch?.levelIds[0] && !unlocked;
 
     const nodeRadius = isBossLevel || isFinalGate ? 34 : 28;
 
@@ -303,6 +345,7 @@ export class LevelSelectScene extends Phaser.Scene {
 
   private createTopNav(): void {
     const labels: { text: string; scene: string }[] = [
+      { text: t('navChapters'), scene: 'ChapterSelectScene' },
       { text: t('navGacha'), scene: 'GachaScene' },
       { text: t('navCollection'), scene: 'CollectionScene' },
     ];

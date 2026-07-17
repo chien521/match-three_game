@@ -35,6 +35,22 @@ const BRANCH_THEMES: Record<string, BattleTheme> = {
   wood: THEMES[0],
   sky: { top: 0x1a2b4a, bottom: 0x10131d, ambient: 0xecf0f1 },
   final: THEMES[2],
+
+  // Chapter 2 — The Shattered Frontier.
+  'ch2-prologue': { top: 0x1a0f1d, bottom: 0x10131d, ambient: 0x8a6bb0 },
+  'ch2-fire': { top: 0x3a1608, bottom: 0x10131d, ambient: 0xff7043 },
+  'ch2-water': { top: 0x0a2a3a, bottom: 0x10131d, ambient: 0x5ec8e0 },
+  'ch2-wood': { top: 0x1a2408, bottom: 0x10131d, ambient: 0x7cb342 },
+  'ch2-dark': { top: 0x140a1c, bottom: 0x10131d, ambient: 0x6a3fa0 },
+  'ch2-final': { top: 0x2a2408, bottom: 0x10131d, ambient: 0xffe066 },
+
+  // Chapter 3 — Realm's End.
+  'ch3-prologue': { top: 0x120a1a, bottom: 0x10131d, ambient: 0x4a2f6a },
+  'ch3-fire': { top: 0x3a0808, bottom: 0x10131d, ambient: 0xff3d3d },
+  'ch3-water': { top: 0x061a2a, bottom: 0x10131d, ambient: 0x2f6fa0 },
+  'ch3-wood': { top: 0x141f08, bottom: 0x10131d, ambient: 0x4f8a2a },
+  'ch3-light': { top: 0x2a2410, bottom: 0x10131d, ambient: 0xfff2b0 },
+  'ch3-final': { top: 0x0a0510, bottom: 0x10131d, ambient: 0x3a1a5a },
 };
 
 export function themeForBranch(branchId: string | undefined): BattleTheme {

@@ -1,5 +1,6 @@
 import './style.css';
 import Phaser from 'phaser';
+import { ChapterSelectScene } from './scenes/ChapterSelectScene';
 import { CollectionScene } from './scenes/CollectionScene';
 import { GachaScene } from './scenes/GachaScene';
 import { GameScene } from './scenes/GameScene';
@@ -11,5 +12,5 @@ new Phaser.Game({
   width: 800,
   height: 800,
   backgroundColor: '#12141c',
-  scene: [LevelSelectScene, GameScene, GachaScene, CollectionScene],
+  scene: [ChapterSelectScene, LevelSelectScene, GameScene, GachaScene, CollectionScene],
 });

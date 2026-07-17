@@ -120,6 +120,20 @@ describe('isLevelUnlocked (branch graph)', () => {
     // e.g. a migrated legacy save cleared fire-1 without the new prologue existing.
     expect(isLevelUnlocked(makeData({ 'fire-1': 2 }), 'fire-1')).toBe(true);
   });
+
+  it("chapter 2's prologue is locked until chapter 1's final boss is cleared", () => {
+    const data = makeData({ 'final-2': 2 });
+    expect(isLevelUnlocked(data, 'ch2-prologue-1')).toBe(false);
+    const cleared = makeData({ 'final-2': 2, 'final-3': 3 });
+    expect(isLevelUnlocked(cleared, 'ch2-prologue-1')).toBe(true);
+  });
+
+  it("chapter 3's prologue is locked until chapter 2's final boss is cleared", () => {
+    const data = makeData({ 'ch2-final-2': 2 });
+    expect(isLevelUnlocked(data, 'ch3-prologue-1')).toBe(false);
+    const cleared = makeData({ 'ch2-final-2': 2, 'ch2-final-3': 3 });
+    expect(isLevelUnlocked(cleared, 'ch3-prologue-1')).toBe(true);
+  });
 });
 
 describe('migrateLevelStars', () => {

@@ -2,7 +2,14 @@ import Phaser from 'phaser';
 import { Board } from '../game/Board';
 import type { Vec2 } from '../game/Board';
 import { BattleState } from '../game/BattleState';
-import { branchForLevel, levelById, nextLevelIdInBranch } from '../game/levels';
+import {
+  CHAPTERS,
+  branchForLevel,
+  chapterForLevel,
+  isChapterFinale,
+  levelById,
+  nextLevelIdInBranch,
+} from '../game/levels';
 import type { LevelConfig } from '../game/levels';
 import {
   CURRENCY_GAME_CLEAR_BONUS,
@@ -1337,7 +1344,9 @@ export class GameScene extends Phaser.Scene {
     });
     const branch = branchForLevel(this.levelId);
     const nextLevelId = nextLevelIdInBranch(this.levelId);
-    const isCampaignFinale = branch?.id === 'final' && nextLevelId === null;
+    const isChapterFinaleLevel = isChapterFinale(this.levelId);
+    const isCampaignFinale =
+      isChapterFinaleLevel && chapterForLevel(this.levelId)?.id === CHAPTERS[CHAPTERS.length - 1].id;
     const isBranchBossClear = branch !== undefined && !isCampaignFinale && nextLevelId === null;
     const currencyEarned =
       CURRENCY_PER_LEVEL_CLEAR + (isCampaignFinale ? CURRENCY_GAME_CLEAR_BONUS : 0);
@@ -1346,6 +1355,14 @@ export class GameScene extends Phaser.Scene {
     data = addCurrency(data, currencyEarned);
     data = recordLevelClear(data, this.levelId, stars);
     savePlayerData(data);
+
+    // Clearing a chapter's own final boss sends the player to the chapter
+    // picker (so a newly-unlocked chapter is visible); any other "back to
+    // map" click returns to this level's own chapter map.
+    const backToMap = () =>
+      isChapterFinaleLevel
+        ? this.scene.start('ChapterSelectScene')
+        : this.scene.start('LevelSelectScene', { chapterId: chapterForLevel(this.levelId)?.id });
 
     // Composed as a closure so the language toggle can rebuild the panel.
     const show = () => {
@@ -1361,7 +1378,7 @@ export class GameScene extends Phaser.Scene {
           },
         });
       }
-      buttons.push({ label: t('backToMap'), onClick: () => this.scene.start('LevelSelectScene') });
+      buttons.push({ label: t('backToMap'), onClick: backToMap });
 
       this.showEndPanel({
         title: t('levelClear'),
@@ -1390,7 +1407,12 @@ export class GameScene extends Phaser.Scene {
         title: t(titleKey),
         titleColor: isDefeat ? '#ff5555' : '#ffe066',
         lines: [],
-        buttons: [{ label: t('backToMenu'), onClick: () => this.scene.start('LevelSelectScene') }],
+        buttons: [
+          {
+            label: t('backToMenu'),
+            onClick: () => this.scene.start('LevelSelectScene', { chapterId: chapterForLevel(this.levelId)?.id }),
+          },
+        ],
       });
     };
     this.activeOverlayRedraw = show;

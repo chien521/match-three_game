@@ -12,26 +12,61 @@ exactly 800x800 so the centered canvas sits at (0,0) and game coordinates ==
 page coordinates.
 
 A file-based interactive driver works well: a background node script that
-polls a `cmd.json` for `{seq, action: click|drag|wait|exit, x, y, path, ms,
-name}`, executes it, screenshots to `shot-<name>.png`, and writes `result.txt`
-with the seq. Read screenshots with the Read tool to see the board, then plan
-the next input. NOTE: node resolves `playwright-core` relative to the script
-location — import it via `createRequire('<repo>/package.json')`.
+polls a `cmd.json` for `{seq, action: click|drag|wait|eval|reload|exit, x, y,
+path, ms, code, name}`, executes it, screenshots to `shot-<name>.png`, and
+writes `result.txt` with the seq. `eval` runs `page.evaluate(cmd.code)` (e.g.
+to seed `localStorage` progress without playing 17 levels by hand); `reload`
+does `page.reload()` to pick that up. Read screenshots with the Read tool to
+see the board, then plan the next input. NOTE: node resolves
+`playwright-core` relative to the script location — import it via
+`createRequire('<repo>/package.json')`.
+
+## Chapters (game/levels.ts's CHAPTERS)
+
+The campaign is split into 3 chapters (`ch1`/`ch2`/`ch3`), each its own full
+prologue→4 branches→final-boss graph (17 levels each) — one map screen can't
+fit all three, so `ChapterSelectScene` (the game's initial scene) is a picker
+with one card per chapter. A chapter unlocks once its first level is
+reachable, via the normal `unlockRequires` chain (chapter N's prologue-1
+requires chapter N-1's final-boss level) — no separate chapter-unlock state.
+`LevelSelectScene` now takes `{ chapterId }` (defaults to `ch1`); it filters
+`BRANCHES` down to that chapter and lays out the map exactly like before,
+just relative to that chapter's own prologue/branches/final instead of
+hardcoded `'prologue'`/`'final'` ids.
+
+To jump straight to chapter 2/3 without clearing chapter 1/2 by hand, seed
+`localStorage` then reload:
+```json
+{"action":"eval","code":"localStorage.setItem('match3-player-data', JSON.stringify({currency:9999,owned:[{id:'firebrand',copies:1}],activeTeamIds:['firebrand'],levelStars:{'final-3':3,'ch2-final-3':3}}))"}
+{"action":"reload"}
+```
+(`final-3` cleared unlocks ch2; `ch2-final-3` cleared unlocks ch3.)
 
 ## Key coordinates (800x800 canvas)
 - Board: 6 cols x 5 rows, tile 96, origin (112, 230). Cell center:
   `x = 160 + 96*col`, `y = 278 + 96*row`. Enemy emoji sprite at (400, ~176).
-- Level-select is a branching campaign map (GameScene takes `{ levelId }`,
-  not an index). Prologue nodes (400,706),(400,640); four parallel branch
-  columns evenly spread x ≈ 120 (fire), 307 (water), 493 (wood), 680 (sky)
-  with rows y = 564, 492, 420 (bottom→top; row 420 = branch boss); final
-  chapter (400,330),(400,256),(400,182). final-1 unlocks only after
-  fire-3/water-3/wood-3/sky-3 are all cleared. Locked levels show 🔒 and are
-  not clickable. Column x-positions are computed by `columnX()` in
+- ChapterSelectScene (initial scene): 3 vertical cards, centers y ≈ 170
+  (ch1), 304 (ch2), 438 (ch3), each ~560x110. Locked chapters show 🔒 and
+  aren't clickable. Clicking an unlocked card starts LevelSelectScene with
+  `{ chapterId }`.
+- Level-select is a branching campaign map for ONE chapter (GameScene takes
+  `{ levelId }`, not an index — chapter membership is derived from the level
+  id via `chapterForLevel()`). Prologue nodes (400,706),(400,640); four
+  parallel branch columns evenly spread x ≈ 120/307/493/680 with rows y =
+  564, 492, 420 (bottom→top; row 420 = branch boss); final branch
+  (400,330),(400,256),(400,182). A chapter's final-1 unlocks only after all
+  four of that chapter's branch bosses are cleared. Locked levels show 🔒 and
+  are not clickable. Column x-positions are computed by `columnX()` in
   LevelSelectScene.ts — evenly spread between margins, so adding/removing a
   branch shifts every column automatically.
-  Bottom nav buttons y=764: Gacha x≈309, Collection x≈491 (only 2 buttons
-  now — no roguelike tower entry exists anywhere in the game).
+  Bottom nav buttons y=764: Chapters x≈217 (back to ChapterSelectScene),
+  Gacha x≈400, Collection x≈583 (3 buttons now, auto-centered).
+- Clearing a chapter's own final boss routes "Back to Map"/"Back to Menu" to
+  ChapterSelectScene (so a newly-unlocked chapter is visible); clearing any
+  other level routes back to that level's own chapter's LevelSelectScene.
+  Only the LAST chapter's final boss (`ch3-final-3`) triggers the "game
+  clear" bonus/splash — earlier chapters' finales are treated as a normal
+  chapter-clear, not the campaign ending.
 - Story intro "Begin Battle" button: (400, 520). Boss levels play a BOSS
   splash right after dismissing the intro.
 - Skill buttons (5-member team) y≈774: x ≈ 93, 246, 399, 553, 706.
@@ -59,9 +94,15 @@ location — import it via `createRequire('<repo>/package.json')`.
   click, retry after defeat) starts with fresh (zeroed) cooldowns.
 
 - The roguelike tower mode (RunMapScene/game/run.ts/game/relics.ts) was
-  removed — story mode is the only game mode. The campaign map now has four
-  parallel branches (fire/water/wood/sky) instead of three, converging into
-  the final chapter once all four branch bosses are cleared.
+  removed — story mode is the only game mode.
+
+- Every playable character (CHARACTER_POOL) has a `leaderSkill`, shown as a
+  small blue line under the score in battle ("隊長技：{name}——{desc}") when
+  `team[0]` has one — which is always true now. Rarer characters have higher
+  multipliers (Common ~1.2-1.3x, Rare ~1.4-1.6x, SSR ~1.5-2x); some are
+  element-restricted, some are combo-gated (`minCombo`). Only `team[0]`'s
+  leader skill applies — set `activeTeamIds` order (via Collection, or the
+  seeded-`localStorage` trick above) to put a specific character in the lead.
 
 ## Gotchas
 - Free-drag: hold gem keeps following pointer; matches resolve on release.

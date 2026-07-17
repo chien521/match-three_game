@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { UI, ZH_CONTENT, getLang, setLang, t, toggleLang, tr } from './i18n';
 import type { UiKey } from './i18n';
-import { BRANCHES, LEVELS } from './levels';
+import { BRANCHES, CHAPTERS, LEVELS } from './levels';
 import { CHARACTER_POOL } from './characterPool';
 import { ELEMENT_NAMES } from './constants';
 import { elementAbbr } from './team';
@@ -74,6 +74,7 @@ describe('translation coverage — every user-facing content string has a zh ent
     { label: 'level names', values: LEVELS.map((l) => l.name) },
     { label: 'level stories', values: LEVELS.map((l) => l.story) },
     { label: 'branch titles', values: BRANCHES.map((b) => b.title) },
+    { label: 'chapter titles', values: CHAPTERS.map((c) => c.title) },
     { label: 'story enemy names', values: LEVELS.flatMap((l) => l.enemies.map((e) => e.name)) },
     { label: 'character names', values: CHARACTER_POOL.map((c) => c.name) },
     { label: 'skill names', values: CHARACTER_POOL.map((c) => c.skillName) },
