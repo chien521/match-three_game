@@ -165,19 +165,51 @@ export const UI = {
   // Collection
   collectionTitle: { en: 'Collection & Team', zh: '圖鑑與隊伍' },
   collectionHint: {
-    en: 'Tap a card to add/remove — team {n}/{m}. Leader = slot 1.',
-    zh: '點擊卡片加入／移除——隊伍 {n}/{m}。1 號位為隊長。',
+    en: 'Tap a card for details — team {n}/{m}. Leader = slot 1.',
+    zh: '點擊卡片查看詳情——隊伍 {n}/{m}。1 號位為隊長。',
   },
   teamFull: {
-    en: 'Team is full (max {m}) — tap a member to remove first.',
-    zh: '隊伍已滿（上限 {m}）——請先點擊隊員移除。',
+    en: 'Team is full (max {m}) — remove a member first.',
+    zh: '隊伍已滿（上限 {m}）——請先移除一名隊員。',
   },
   collectionLegend: {
-    en: 'Card frame = rarity  ·  gold glow = in team',
-    zh: '卡框顏色＝稀有度．金色光暈＝隊伍中',
+    en: 'Card frame = rarity  ·  gold glow = in team  ·  tap a slot to remove that member',
+    zh: '卡框顏色＝稀有度．金色光暈＝隊伍中．點擊隊伍欄可移除該隊員',
   },
   lvLabel: { en: 'Lv.{n}', zh: '等級 {n}' },
   cardStats: { en: 'ATK {a}   HP {h}', zh: '攻擊 {a}   生命 {h}' },
+
+  // Card detail popup
+  activeSkillLabel: { en: 'Active Skill', zh: '主動技能' },
+  leaderSkillLabel: { en: 'Leader Skill', zh: '隊長技能' },
+  skillCooldownLabel: { en: 'Cooldown: {n} turns', zh: '冷卻時間：{n} 回合' },
+  addToTeam: { en: 'Add to Team', zh: '加入隊伍' },
+  removeFromTeam: { en: 'Remove from Team', zh: '移出隊伍' },
+  closeDetail: { en: 'Close', zh: '關閉' },
+  elementHeart: { en: 'Heart', zh: '愛心' },
+  skillDescDamage: { en: 'Deals {power} damage to the enemy.', zh: '對敵人造成 {power} 點傷害。' },
+  skillDescHeal: { en: 'Restores {power} HP.', zh: '恢復 {power} 點生命值。' },
+  skillDescConvert: {
+    en: 'Converts {from} gems on the board to {to} gems.',
+    zh: '將盤面上的{from}珠轉換為{to}珠。',
+  },
+  skillDescExtendTime: {
+    en: "Adds {sec}s to this turn's move timer.",
+    zh: '本回合操作時間 +{sec} 秒。',
+  },
+  skillDescShieldSelf: {
+    en: 'Reduces incoming damage by {pct}% for the next {turns} enemy attacks.',
+    zh: '接下來 {turns} 次敵方攻擊減傷 {pct}%。',
+  },
+  skillDescTeamBuff: {
+    en: "Multiplies the team's match damage by x{mult} for {turns} turns.",
+    zh: '接下來 {turns} 回合，隊伍傷害提升為 x{mult}。',
+  },
+  skillDescStunEnemy: {
+    en: "Delays the enemy's next attack by {turns} turns.",
+    zh: '延遲敵人下次攻擊 {turns} 回合。',
+  },
+  skillDescCleanse: { en: 'Cures poison.', zh: '解除中毒狀態。' },
 } satisfies Record<string, Entry>;
 
 export type UiKey = keyof typeof UI;

@@ -74,10 +74,24 @@ To jump straight to chapter 2/3 without clearing chapter 1/2 by hand, seed
   secondary (Back to Map) x≈498.
 - Gacha: Pull x1 button (292, 646), Pull x5 (508, 646); revealed cards line
   up across y≈380; insufficient-funds hint at y≈700.
-- Collection: team-slot avatars y≈138; card grid 4 cols starting y≈300
-  (card centers ~x 118/307/496/685), tap card to toggle team membership.
+- Collection: team-slot avatars y≈138; card grid 4 cols starting y≈299
+  (card centers ~x 115/305/495/685, row gap 172px). Tapping a grid card opens
+  a detail popup (name/rarity/element/level/stats, active skill name+cooldown
+  +description, leader skill name+description) centered at (400,400), panel
+  560x460 → panel spans x 120-680, y 170-630. Popup has an Add/Remove-Team
+  button at y≈573 and a ✕ close at top-right (≈656,186); clicking the dimmed
+  backdrop outside the panel also closes it without affecting any card
+  underneath. Tapping a filled team-bar slot directly (not via the popup)
+  removes that member immediately, in place.
 
 ## Flows worth driving
+- Removing a team member (via the team bar or the card-detail popup) leaves
+  that slot empty — later slots do NOT shift forward, so team order (and
+  who's team[0]/leader) stays stable across edits. Adding a character back
+  fills the first empty slot, left to right, not necessarily their old slot
+  unless it's still the first empty one. `activeTeamIds` in PlayerData can
+  contain `''` for an empty slot; `getActiveTeam()` drops those when building
+  the battle roster.
 - Drag a gem along cell centers (50ms per step) to make a match; a no-match
   move ends the turn and lets the enemy act (verifies ATK countdown/lock).
 - Enemy status line under the HP bar shows `ATK in N`, shield 🛡 and lock 🔒.

@@ -23,6 +23,13 @@ export interface OwnedCharacter {
 export interface PlayerData {
   currency: number;
   owned: OwnedCharacter[];
+  /**
+   * Team-slot assignment, up to MAX_TEAM_SIZE entries. A slot can be `''`
+   * (empty) after a member is removed — removing a slot does NOT shift later
+   * slots forward, so slot order (and therefore who leads, slot 0) stays
+   * stable across edits. getActiveTeam() drops empty slots when building the
+   * battle roster.
+   */
   activeTeamIds: string[];
   /** Best star rating (1-3) earned per story level, keyed by level id; absent = not cleared. */
   levelStars: Record<string, number>;
@@ -182,7 +189,11 @@ export function getOwnedCharacters(data: PlayerData): { character: Character; co
     .filter((entry): entry is { character: Character; copies: number } => entry !== undefined);
 }
 
-/** The player's active battle team, with level-scaled stats, honoring team-slot order. */
+/**
+ * The player's active battle team, with level-scaled stats, honoring
+ * team-slot order (empty `''` slots are dropped, so the leader — team[0] —
+ * is whichever character occupies the first non-empty slot).
+ */
 export function getActiveTeam(data: PlayerData): Character[] {
   const owned = getOwnedCharacters(data);
   const team = data.activeTeamIds

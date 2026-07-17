@@ -8,6 +8,7 @@ import {
 } from '../game/playerData';
 import type { Character } from '../game/team';
 import { elementName } from '../game/team';
+import { HEART_TYPE } from '../game/constants';
 import { t, tr } from '../game/i18n';
 import { drawThemedBackground } from './battleFx';
 import { drawAvatar } from './avatarUi';
@@ -29,13 +30,17 @@ const GRID_TOP = 220;
 
 /**
  * Character codex + team formation: a card grid of every owned character
- * with a five-slot team bar on top. Tap a card to toggle it in/out of the
- * active team; tap a filled team slot to remove that member.
+ * with a five-slot team bar on top. Tap a card to open its detail popup
+ * (stats, active skill, leader skill) with an add/remove-team button inside;
+ * tap a filled team slot directly to remove that member. Removing a member
+ * (from either place) leaves that slot empty rather than shifting later
+ * members forward — adding a new member fills the first empty slot.
  */
 export class CollectionScene extends Phaser.Scene {
   private activeTeamIds: string[] = [];
   private hintText!: Phaser.GameObjects.Text;
   private dynamic: Phaser.GameObjects.GameObject[] = [];
+  private overlay: Phaser.GameObjects.GameObject[] = [];
 
   constructor() {
     super('CollectionScene');
@@ -44,6 +49,7 @@ export class CollectionScene extends Phaser.Scene {
   create(): void {
     const data = loadPlayerData();
     this.activeTeamIds = [...data.activeTeamIds];
+    while (this.activeTeamIds.length < MAX_TEAM_SIZE) this.activeTeamIds.push('');
 
     drawThemedBackground(this, { top: 0x0e1e2b, bottom: 0x10131d, ambient: 0x7dd3fc });
 
@@ -91,7 +97,9 @@ export class CollectionScene extends Phaser.Scene {
 
     this.hintText
       .setColor('#9aa3c7')
-      .setText(t('collectionHint', { n: this.activeTeamIds.length, m: MAX_TEAM_SIZE }));
+      .setText(
+        t('collectionHint', { n: this.activeTeamIds.filter((id) => id).length, m: MAX_TEAM_SIZE }),
+      );
 
     const owned = getOwnedCharacters(loadPlayerData());
     const byId = new Map(owned.map((entry) => [entry.character.id, entry]));
@@ -132,7 +140,7 @@ export class CollectionScene extends Phaser.Scene {
       const hitZone = this.add
         .circle(x, y, 28, 0xffffff, 0.001)
         .setInteractive({ useHandCursor: true });
-      hitZone.on('pointerdown', () => this.toggleTeamMember(entry.character.id));
+      hitZone.on('pointerdown', () => this.removeSlot(i));
       this.dynamic.push(avatar, slotBadge, hitZone);
     }
   }
@@ -204,7 +212,7 @@ export class CollectionScene extends Phaser.Scene {
         .setInteractive({ useHandCursor: true });
       hit.on('pointerover', () => g.setAlpha(0.85));
       hit.on('pointerout', () => g.setAlpha(1));
-      hit.on('pointerdown', () => this.toggleTeamMember(character.id));
+      hit.on('pointerdown', () => this.openDetail(character, copies));
       this.dynamic.push(hit);
     });
 
@@ -220,18 +228,207 @@ export class CollectionScene extends Phaser.Scene {
     this.dynamic.push(legend);
   }
 
-  private toggleTeamMember(id: string): void {
-    if (this.activeTeamIds.includes(id)) {
-      this.activeTeamIds = this.activeTeamIds.filter((activeId) => activeId !== id);
-    } else if (this.activeTeamIds.length < MAX_TEAM_SIZE) {
-      this.activeTeamIds = [...this.activeTeamIds, id];
-    } else {
-      this.hintText
-        .setColor('#ff6161')
-        .setText(t('teamFull', { m: MAX_TEAM_SIZE }));
-      return;
-    }
+  /** Clears one team slot in place — later slots do not shift forward. */
+  private removeSlot(index: number): void {
+    this.activeTeamIds[index] = '';
     savePlayerData(setActiveTeam(loadPlayerData(), this.activeTeamIds));
+    this.closeDetail();
     this.redraw();
+  }
+
+  /** Places a character into the first empty slot, if any; leaves slots untouched otherwise. */
+  private addToFirstEmptySlot(id: string): boolean {
+    const index = this.activeTeamIds.findIndex((activeId) => !activeId);
+    if (index === -1) return false;
+    this.activeTeamIds[index] = id;
+    savePlayerData(setActiveTeam(loadPlayerData(), this.activeTeamIds));
+    return true;
+  }
+
+  /** Turns a character's active-skill data into a readable sentence. */
+  private describeSkill(character: Character): string {
+    switch (character.skillEffect) {
+      case 'damage':
+        return t('skillDescDamage', { power: character.skillPower });
+      case 'heal':
+        return t('skillDescHeal', { power: character.skillPower });
+      case 'convert': {
+        const label = (element: number) =>
+          element === HEART_TYPE ? t('elementHeart') : tr(elementName(element));
+        return t('skillDescConvert', {
+          from: label(character.skillConvertFrom),
+          to: label(character.skillConvertTo),
+        });
+      }
+      case 'extendTime':
+        return t('skillDescExtendTime', { sec: Math.round((character.skillPower / 1000) * 10) / 10 });
+      case 'shieldSelf':
+        return t('skillDescShieldSelf', {
+          pct: Math.round(character.skillShieldReduction * 100),
+          turns: character.skillShieldTurns,
+        });
+      case 'teamBuff':
+        return t('skillDescTeamBuff', {
+          mult: character.skillBuffMultiplier,
+          turns: character.skillBuffTurns,
+        });
+      case 'stunEnemy':
+        return t('skillDescStunEnemy', { turns: character.skillStunTurns });
+      case 'cleanse':
+        return t('skillDescCleanse');
+    }
+  }
+
+  /** Destroys any open detail popup. */
+  private closeDetail(): void {
+    for (const obj of this.overlay) obj.destroy();
+    this.overlay = [];
+  }
+
+  /** Opens a popup showing a card's full stats, active skill, and leader skill, with an add/remove-team button. */
+  private openDetail(character: Character, copies: number): void {
+    this.closeDetail();
+
+    const cx = this.scale.width / 2;
+    const cy = this.scale.height / 2;
+    const panelWidth = 560;
+    const panelHeight = 460;
+    const frameColor = RARITY_COLORS[character.rarity] ?? 0xffffff;
+
+    const backdrop = this.add
+      .rectangle(cx, cy, this.scale.width, this.scale.height, 0x05060a, 0.72)
+      .setInteractive({ useHandCursor: false });
+    backdrop.on('pointerdown', () => this.closeDetail());
+    this.overlay.push(backdrop);
+
+    const panelTop = cy - panelHeight / 2;
+    const panel = this.add.graphics();
+    panel.fillStyle(0x1b1f2e, 0.98);
+    panel.fillRoundedRect(cx - panelWidth / 2, panelTop, panelWidth, panelHeight, 14);
+    panel.lineStyle(2, frameColor, 1);
+    panel.strokeRoundedRect(cx - panelWidth / 2, panelTop, panelWidth, panelHeight, 14);
+    this.overlay.push(panel);
+    // Swallow clicks on the panel itself so they don't fall through to the backdrop and close it.
+    const panelHit = this.add
+      .rectangle(cx, panelTop + panelHeight / 2, panelWidth, panelHeight, 0xffffff, 0.001)
+      .setInteractive({ useHandCursor: false });
+    this.overlay.push(panelHit);
+
+    const avatar = drawAvatar(this, cx, panelTop + 56, character, 40);
+    this.overlay.push(avatar);
+
+    const name = this.add
+      .text(cx, panelTop + 104, tr(character.name), {
+        fontSize: '20px',
+        color: `#${frameColor.toString(16).padStart(6, '0')}`,
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5, 0);
+    this.overlay.push(name);
+
+    const statsLine = this.add
+      .text(
+        cx,
+        panelTop + 132,
+        `${tr(character.rarity)} · ${tr(elementName(character.element))} · ${t('lvLabel', { n: copies })}\n${t('statLine', { a: character.attack, h: character.maxHp })}`,
+        { fontSize: '13px', color: '#9aa3c7', align: 'center', lineSpacing: 4 },
+      )
+      .setOrigin(0.5, 0);
+    this.overlay.push(statsLine);
+
+    const skillHeader = this.add
+      .text(cx - panelWidth / 2 + 24, panelTop + 190, t('activeSkillLabel'), {
+        fontSize: '13px',
+        color: '#ffe066',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0, 0);
+    this.overlay.push(skillHeader);
+
+    const skillBody = this.add
+      .text(
+        cx - panelWidth / 2 + 24,
+        panelTop + 212,
+        `${tr(character.skillName)} (${t('skillCooldownLabel', { n: character.skillCooldownTurns })})\n${this.describeSkill(character)}`,
+        { fontSize: '13px', color: '#e6e8f0', wordWrap: { width: panelWidth - 48 }, lineSpacing: 4 },
+      )
+      .setOrigin(0, 0);
+    this.overlay.push(skillBody);
+
+    const leaderHeader = this.add
+      .text(cx - panelWidth / 2 + 24, panelTop + 280, t('leaderSkillLabel'), {
+        fontSize: '13px',
+        color: '#ffe066',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0, 0);
+    this.overlay.push(leaderHeader);
+
+    const leaderBody = this.add
+      .text(
+        cx - panelWidth / 2 + 24,
+        panelTop + 302,
+        character.leaderSkill
+          ? `${tr(character.leaderSkill.name)}\n${tr(character.leaderSkill.description)}`
+          : '—',
+        { fontSize: '13px', color: '#e6e8f0', wordWrap: { width: panelWidth - 48 }, lineSpacing: 4 },
+      )
+      .setOrigin(0, 0);
+    this.overlay.push(leaderBody);
+
+    const inTeam = this.activeTeamIds.includes(character.id);
+    const hasEmptySlot = this.activeTeamIds.some((activeId) => !activeId);
+    const actionY = panelTop + panelHeight - 56;
+
+    if (inTeam) {
+      const teamIndex = this.activeTeamIds.indexOf(character.id);
+      const removeBtn = this.add
+        .text(cx, actionY, t('removeFromTeam'), {
+          fontSize: '15px',
+          color: '#ffffff',
+          backgroundColor: '#7a2f3d',
+          padding: { x: 18, y: 9 },
+        })
+        .setOrigin(0.5)
+        .setInteractive({ useHandCursor: true });
+      removeBtn.on('pointerdown', () => this.removeSlot(teamIndex));
+      this.overlay.push(removeBtn);
+    } else if (hasEmptySlot) {
+      const addBtn = this.add
+        .text(cx, actionY, t('addToTeam'), {
+          fontSize: '15px',
+          color: '#0e1018',
+          backgroundColor: '#ffe066',
+          padding: { x: 18, y: 9 },
+        })
+        .setOrigin(0.5)
+        .setInteractive({ useHandCursor: true });
+      addBtn.on('pointerdown', () => {
+        this.addToFirstEmptySlot(character.id);
+        this.closeDetail();
+        this.redraw();
+      });
+      this.overlay.push(addBtn);
+    } else {
+      const fullHint = this.add
+        .text(cx, actionY, t('teamFull', { m: MAX_TEAM_SIZE }), {
+          fontSize: '13px',
+          color: '#ff6161',
+          align: 'center',
+          wordWrap: { width: panelWidth - 48 },
+        })
+        .setOrigin(0.5);
+      this.overlay.push(fullHint);
+    }
+
+    const closeBtn = this.add
+      .text(cx + panelWidth / 2 - 16, panelTop + 16, '✕', {
+        fontSize: '16px',
+        color: '#9aa3c7',
+      })
+      .setOrigin(1, 0)
+      .setInteractive({ useHandCursor: true });
+    closeBtn.on('pointerdown', () => this.closeDetail());
+    this.overlay.push(closeBtn);
   }
 }
