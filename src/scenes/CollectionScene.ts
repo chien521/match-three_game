@@ -67,6 +67,17 @@ export class CollectionScene extends Phaser.Scene {
       .text(this.scale.width / 2, 78, '', { fontSize: '14px', color: '#9aa3c7' })
       .setOrigin(0.5);
 
+    const resetButton = this.add
+      .text(this.scale.width - 20, 46, t('resetTeam'), {
+        fontSize: '13px',
+        color: '#ff8f8f',
+        backgroundColor: '#2a2f45',
+        padding: { x: 10, y: 6 },
+      })
+      .setOrigin(1, 0.5)
+      .setInteractive({ useHandCursor: true });
+    resetButton.on('pointerdown', () => this.resetTeam());
+
     drawLanguageToggle(this, 20, 18, () => {
       // Persist any in-progress team edits before the restart redraws.
       savePlayerData(setActiveTeam(loadPlayerData(), this.activeTeamIds));
@@ -226,6 +237,14 @@ export class CollectionScene extends Phaser.Scene {
       .setOrigin(0.5, 0);
     legend.setText(t('collectionLegend'));
     this.dynamic.push(legend);
+  }
+
+  /** Clears every team slot in one shot. */
+  private resetTeam(): void {
+    this.activeTeamIds = this.activeTeamIds.map(() => '');
+    savePlayerData(setActiveTeam(loadPlayerData(), this.activeTeamIds));
+    this.closeDetail();
+    this.redraw();
   }
 
   /** Clears one team slot in place — later slots do not shift forward. */

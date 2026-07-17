@@ -346,7 +346,6 @@ export class LevelSelectScene extends Phaser.Scene {
   private createTopNav(): void {
     const labels: { text: string; scene: string }[] = [
       { text: t('navChapters'), scene: 'ChapterSelectScene' },
-      { text: t('navGacha'), scene: 'GachaScene' },
       { text: t('navCollection'), scene: 'CollectionScene' },
     ];
     const width = 170;

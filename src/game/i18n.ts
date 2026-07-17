@@ -164,6 +164,7 @@ export const UI = {
 
   // Collection
   collectionTitle: { en: 'Collection & Team', zh: '圖鑑與隊伍' },
+  resetTeam: { en: 'Reset Team', zh: '重置隊伍' },
   collectionHint: {
     en: 'Tap a card for details — team {n}/{m}. Leader = slot 1.',
     zh: '點擊卡片查看詳情——隊伍 {n}/{m}。1 號位為隊長。',

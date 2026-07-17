@@ -89,6 +89,22 @@ export class ChapterSelectScene extends Phaser.Scene {
       });
     });
 
+    this.drawGachaButton();
     drawLanguageToggle(this, 20, 18, () => this.scene.restart());
+  }
+
+  private drawGachaButton(): void {
+    const x = this.scale.width / 2;
+    const y = this.scale.height - 36;
+    const button = this.add
+      .rectangle(x, y, 170, 44, 0x2a2f45)
+      .setStrokeStyle(2, 0x394162)
+      .setInteractive({ useHandCursor: true });
+    this.add
+      .text(x, y, t('navGacha'), { fontSize: '16px', color: '#ffffff', fontStyle: 'bold' })
+      .setOrigin(0.5);
+    button.on('pointerover', () => button.setFillStyle(0x394162));
+    button.on('pointerout', () => button.setFillStyle(0x2a2f45));
+    button.on('pointerdown', () => this.scene.start('GachaScene'));
   }
 }
