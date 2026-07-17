@@ -4,8 +4,10 @@ import type { BranchInfo, LevelConfig } from '../game/levels';
 import { enemyEmoji } from '../game/enemyArt';
 import { isLevelUnlocked, loadPlayerData } from '../game/playerData';
 import type { PlayerData } from '../game/playerData';
+import { t, tr } from '../game/i18n';
 import { lighten } from './gemArt';
 import { themeForBranch } from './battleFx';
+import { drawLanguageToggle } from './langToggle';
 
 /** Map column x-positions for the three parallel branches ('single' columns sit at center). */
 const COLUMN_X: Record<BranchInfo['column'], number> = {
@@ -36,6 +38,7 @@ export class LevelSelectScene extends Phaser.Scene {
     this.drawHeader();
     this.drawMap();
     this.createTopNav();
+    drawLanguageToggle(this, 20, 18, () => this.scene.restart());
   }
 
   /** Screen position of a level's node, derived from its branch column + position. */
@@ -107,7 +110,7 @@ export class LevelSelectScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(this.scale.width / 2, 78, 'Clear all three fronts — then face the Ancient Dragon', {
+      .text(this.scale.width / 2, 78, t('mapSubtitle'), {
         fontSize: '14px',
         color: '#9aa3c7',
       })
@@ -241,7 +244,7 @@ export class LevelSelectScene extends Phaser.Scene {
     if (branch.column !== 'single' && positionInBranch === 1) {
       labels.push(
         this.add
-          .text(labelX, y - 24, branch.title, {
+          .text(labelX, y - 24, tr(branch.title), {
             fontSize: '11px',
             color: `#${lighten(theme.ambient, 0.25).toString(16).padStart(6, '0')}`,
             fontStyle: 'bold',
@@ -262,7 +265,7 @@ export class LevelSelectScene extends Phaser.Scene {
     }
 
     // The locked final gate explains its own requirement instead of a name.
-    const nameText = isFinalGate ? 'Clear all three branches to unlock' : level.name;
+    const nameText = isFinalGate ? t('finalGate') : tr(level.name);
     labels.push(
       this.add
         .text(labelX, y + (stars > 0 ? 9 : 0), nameText, {
@@ -294,9 +297,9 @@ export class LevelSelectScene extends Phaser.Scene {
 
   private createTopNav(): void {
     const labels: { text: string; scene: string }[] = [
-      { text: 'Roguelike Tower', scene: 'RunMapScene' },
-      { text: 'Gacha', scene: 'GachaScene' },
-      { text: 'Collection / Team', scene: 'CollectionScene' },
+      { text: t('navTower'), scene: 'RunMapScene' },
+      { text: t('navGacha'), scene: 'GachaScene' },
+      { text: t('navCollection'), scene: 'CollectionScene' },
     ];
     const width = 170;
     const gap = 12;

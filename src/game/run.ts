@@ -389,8 +389,9 @@ export function recruit(run: RunState, character: Character, replaceIndex?: numb
 // Encounter generation
 // ---------------------------------------------------------------------------
 
-/** Grunt name/element pools per floor (index-capped, so extra floors reuse the last pool). */
-const FLOOR_GRUNTS: { name: string; element: number }[][] = [
+/** Grunt name/element pools per floor (index-capped, so extra floors reuse the last pool).
+ * Exported for the i18n coverage test (every name needs a translation). */
+export const FLOOR_GRUNTS: { name: string; element: number }[][] = [
   [
     { name: 'Slime', element: 2 },
     { name: 'Big Slime', element: 2 },
@@ -408,7 +409,7 @@ const FLOOR_GRUNTS: { name: string; element: number }[][] = [
   ],
 ];
 
-const FLOOR_BOSSES: EnemyConfig[] = [
+export const FLOOR_BOSSES: EnemyConfig[] = [
   {
     name: 'Slime Overlord',
     maxHp: 2100,

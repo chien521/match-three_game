@@ -3,8 +3,10 @@ import { PULL_COST, rollGachaMulti } from '../game/gacha';
 import { addCharacter, loadPlayerData, savePlayerData } from '../game/playerData';
 import type { Character } from '../game/team';
 import { elementName } from '../game/team';
+import { t, tr } from '../game/i18n';
 import { drawThemedBackground } from './battleFx';
 import { drawAvatar } from './avatarUi';
+import { drawLanguageToggle } from './langToggle';
 
 const RARITY_COLORS: Record<string, number> = {
   Common: 0x9aa3c7,
@@ -41,7 +43,7 @@ export class GachaScene extends Phaser.Scene {
     drawThemedBackground(this, { top: 0x241c08, bottom: 0x10131d, ambient: 0xffe066 });
 
     this.add
-      .text(this.scale.width / 2, 42, 'Gacha Summon', {
+      .text(this.scale.width / 2, 42, t('gachaTitle'), {
         fontSize: '34px',
         color: '#ffffff',
         fontStyle: 'bold',
@@ -51,7 +53,7 @@ export class GachaScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(this.scale.width / 2, 78, 'Common 60% · Rare 30% · SSR 10%', {
+      .text(this.scale.width / 2, 78, t('gachaOdds'), {
         fontSize: '13px',
         color: '#9aa3c7',
       })
@@ -61,15 +63,15 @@ export class GachaScene extends Phaser.Scene {
       .text(this.scale.width - 20, 24, '', { fontSize: '20px', color: '#ffe066', fontStyle: 'bold' })
       .setOrigin(1, 0);
 
-    this.createPullButton(292, `Pull x1  (${PULL_COST} 💎)`, () => this.pull(1));
-    this.createPullButton(508, `Pull x5  (${PULL_COST * 5} 💎)`, () => this.pull(5));
+    this.createPullButton(292, t('pull1', { n: PULL_COST }), () => this.pull(1));
+    this.createPullButton(508, t('pull5', { n: PULL_COST * 5 }), () => this.pull(5));
 
     this.hintText = this.add
       .text(this.scale.width / 2, 700, '', { fontSize: '15px', color: '#ff6161', fontStyle: 'bold' })
       .setOrigin(0.5);
 
     const backButton = this.add
-      .text(this.scale.width / 2, this.scale.height - 36, 'Back to Menu', {
+      .text(this.scale.width / 2, this.scale.height - 36, t('backToMenu'), {
         fontSize: '16px',
         color: '#ffffff',
         backgroundColor: '#2a2f45',
@@ -78,6 +80,10 @@ export class GachaScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
     backButton.on('pointerdown', () => this.scene.start('LevelSelectScene'));
+
+    // Restart is safe mid-reveal: pull results are written to playerData the
+    // moment the button is pressed, before any card animation plays.
+    drawLanguageToggle(this, 20, 18, () => this.scene.restart());
 
     this.refreshCurrency();
   }
@@ -109,7 +115,7 @@ export class GachaScene extends Phaser.Scene {
 
     let data = loadPlayerData();
     if (data.currency < cost) {
-      this.hintText.setText(`Not enough 💎 — need ${cost}.`);
+      this.hintText.setText(t('notEnough', { n: cost }));
       return;
     }
     this.hintText.setText('');
@@ -298,7 +304,7 @@ export class GachaScene extends Phaser.Scene {
     children.push(avatar);
 
     const name = this.add
-      .text(0, -height / 2 + (compact ? 82 : 118), character.name, {
+      .text(0, -height / 2 + (compact ? 82 : 118), tr(character.name), {
         fontSize: compact ? '13px' : '17px',
         color: colorStr,
         fontStyle: 'bold',
@@ -309,7 +315,7 @@ export class GachaScene extends Phaser.Scene {
     children.push(name);
 
     const rarityLabel = this.add
-      .text(0, -height / 2 + (compact ? 116 : 158), character.rarity, {
+      .text(0, -height / 2 + (compact ? 116 : 158), tr(character.rarity), {
         fontSize: compact ? '12px' : '15px',
         color: colorStr,
         fontStyle: 'bold',
@@ -321,7 +327,7 @@ export class GachaScene extends Phaser.Scene {
       .text(
         0,
         -height / 2 + (compact ? 136 : 186),
-        `${elementName(character.element)}\nATK ${character.attack} · HP ${character.maxHp}\n${character.skillName}`,
+        `${tr(elementName(character.element))}\n${t('statLine', { a: character.attack, h: character.maxHp })}\n${tr(character.skillName)}`,
         {
           fontSize: compact ? '10px' : '13px',
           color: '#9aa3c7',
@@ -333,7 +339,7 @@ export class GachaScene extends Phaser.Scene {
     children.push(stats);
 
     // NEW! / Lv UP ribbon.
-    const ribbonText = result.isNew ? 'NEW!' : `Lv UP → ${result.copiesAfter}`;
+    const ribbonText = result.isNew ? t('newRibbon') : t('lvUpRibbon', { n: result.copiesAfter });
     const ribbon = this.add
       .text(width / 2 - 6, -height / 2 + 6, ribbonText, {
         fontSize: compact ? '10px' : '13px',

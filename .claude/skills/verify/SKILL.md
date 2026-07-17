@@ -48,6 +48,10 @@ location — import it via `createRequire('<repo>/package.json')`.
 - Roguelike run: menu → Roguelike Tower → click highlighted node → battle →
   reward overlays (relic/recruit) → boss → next floor.
 
+- Language toggle (EN/中 pill): top-left ~(36,30) on map/gacha/collection/run
+  scenes (restarts the scene); top-right ~(755,20) in battle (live refresh, no
+  reset). Headless Edge auto-detects zh — screens may boot in Chinese.
+
 ## Gotchas
 - Free-drag: hold gem keeps following pointer; matches resolve on release.
 - Turn timer is 5s from pointerdown — keep scripted drags short.

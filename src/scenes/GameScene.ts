@@ -58,7 +58,10 @@ import {
 import type { BattleTheme } from './battleFx';
 import { recordLevelClear, starsForLevel } from '../game/playerData';
 import { LEVELS } from '../game/levels';
+import { getLang, t, tr } from '../game/i18n';
+import type { UiKey } from '../game/i18n';
 import { drawAvatar } from './avatarUi';
+import { drawLanguageToggle } from './langToggle';
 
 const HP_BAR_WIDTH = 320;
 const HP_BAR_HEIGHT = 18;
@@ -131,6 +134,12 @@ export class GameScene extends Phaser.Scene {
   private enemySprite!: EnemySprite;
   private theme!: BattleTheme;
 
+  private leaderText: Phaser.GameObjects.Text | null = null;
+  /** Rebuilds whatever overlay (story intro / end panel) is currently shown, in the current language. */
+  private activeOverlayRedraw: (() => void) | null = null;
+  private introObjects: Phaser.GameObjects.GameObject[] = [];
+  private endPanelObjects: Phaser.GameObjects.GameObject[] = [];
+
   constructor() {
     super('GameScene');
   }
@@ -153,6 +162,10 @@ export class GameScene extends Phaser.Scene {
     this.storyDismissed = false;
     this.score = 0;
     this.burningUnderlays = new Map();
+    this.leaderText = null;
+    this.activeOverlayRedraw = null;
+    this.introObjects = [];
+    this.endPanelObjects = [];
 
     const boardPixelWidth = BOARD_COLS * TILE_SIZE;
     const boardPixelHeight = BOARD_ROWS * TILE_SIZE;
@@ -176,18 +189,20 @@ export class GameScene extends Phaser.Scene {
     this.board.fillRandomNoMatches(undefined, this.gemColors);
     this.buildSprites();
 
-    this.scoreText = this.add.text(BOARD_MARGIN, BOARD_MARGIN, 'Score: 0', {
+    this.scoreText = this.add.text(BOARD_MARGIN, BOARD_MARGIN, t('score', { n: 0 }), {
       fontSize: '28px',
       color: '#ffffff',
       fontStyle: 'bold',
     });
+    // Combo counter sits below the language toggle pill (top-right corner).
     this.comboText = this.add
-      .text(this.scale.width - BOARD_MARGIN, BOARD_MARGIN, '', {
+      .text(this.scale.width - BOARD_MARGIN, BOARD_MARGIN + 26, '', {
         fontSize: '22px',
         color: '#ffe066',
         fontStyle: 'bold',
       })
       .setOrigin(1, 0);
+    drawLanguageToggle(this, this.scale.width - 62, 8, () => this.refreshLanguage());
 
     const run = this.runMode ? getActiveRun() : null;
     if (run && run.currentNodeId) {
@@ -218,8 +233,8 @@ export class GameScene extends Phaser.Scene {
 
     const leaderSkill = this.battle.team[0]?.leaderSkill;
     if (leaderSkill) {
-      this.add
-        .text(BOARD_MARGIN, BOARD_MARGIN + 34, `Leader: ${leaderSkill.name} — ${leaderSkill.description}`, {
+      this.leaderText = this.add
+        .text(BOARD_MARGIN, BOARD_MARGIN + 34, this.leaderLineText(), {
           fontSize: '14px',
           color: '#7dd3fc',
         });
@@ -233,9 +248,15 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  /** Blocks input behind a narration overlay before the battle begins. */
+  /** Blocks input behind a narration overlay before the battle begins.
+   * Re-entrant: calling it again tears down the previous overlay and
+   * rebuilds it (used by the language toggle). */
   private showStoryIntro(): void {
+    for (const obj of this.introObjects) obj.destroy();
+    this.introObjects = [];
     this.storyDismissed = false;
+    this.activeOverlayRedraw = () => this.showStoryIntro();
+
     const overlay = this.add.rectangle(
       this.scale.width / 2,
       this.scale.height / 2,
@@ -246,7 +267,7 @@ export class GameScene extends Phaser.Scene {
     ).setDepth(200);
 
     const title = this.add
-      .text(this.scale.width / 2, this.scale.height / 2 - 90, this.currentLevel?.name ?? '', {
+      .text(this.scale.width / 2, this.scale.height / 2 - 90, tr(this.currentLevel?.name ?? ''), {
         fontSize: '26px',
         color: '#ffe066',
         fontStyle: 'bold',
@@ -256,7 +277,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(201);
 
     const story = this.add
-      .text(this.scale.width / 2, this.scale.height / 2 - 30, this.currentLevel?.story ?? '', {
+      .text(this.scale.width / 2, this.scale.height / 2 - 30, tr(this.currentLevel?.story ?? ''), {
         fontSize: '16px',
         color: '#ffffff',
         align: 'center',
@@ -271,7 +292,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(201)
       .setInteractive({ useHandCursor: true });
     const buttonText = this.add
-      .text(this.scale.width / 2, this.scale.height / 2 + 120, 'Begin Battle', {
+      .text(this.scale.width / 2, this.scale.height / 2 + 120, t('beginBattle'), {
         fontSize: '18px',
         color: '#ffffff',
         fontStyle: 'bold',
@@ -279,14 +300,14 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(201);
 
+    this.introObjects = [overlay, title, story, button, buttonText];
+
     button.on('pointerover', () => button.setFillStyle(0x394162));
     button.on('pointerout', () => button.setFillStyle(0x2a2f45));
     button.on('pointerdown', () => {
-      overlay.destroy();
-      title.destroy();
-      story.destroy();
-      button.destroy();
-      buttonText.destroy();
+      for (const obj of this.introObjects) obj.destroy();
+      this.introObjects = [];
+      this.activeOverlayRedraw = null;
       void this.introduceEnemy();
       // Defer one tick so the same click can't fall through to the board
       // and start (and instantly waste) a turn.
@@ -294,6 +315,21 @@ export class GameScene extends Phaser.Scene {
         this.storyDismissed = true;
       });
     });
+  }
+
+  /** Re-renders every visible string in the newly selected language without
+   * touching battle state (board, HP, cooldowns, turn count all survive). */
+  private refreshLanguage(): void {
+    this.scoreText.setText(t('score', { n: this.score }));
+    this.leaderText?.setText(this.leaderLineText());
+    this.refreshHpBars(); // also refreshes the roster
+    this.activeOverlayRedraw?.();
+  }
+
+  private leaderLineText(): string {
+    const leaderSkill = this.battle.team[0]?.leaderSkill;
+    if (!leaderSkill) return '';
+    return t('leaderLine', { name: tr(leaderSkill.name), desc: tr(leaderSkill.description) });
   }
 
   // ---------------------------------------------------------------------
@@ -505,34 +541,36 @@ export class GameScene extends Phaser.Scene {
       HP_BAR_HEIGHT,
     );
     const prefix = this.runMode
-      ? `Floor ${(getActiveRun()?.floor ?? 0) + 1}`
+      ? t('floorPrefix', { n: (getActiveRun()?.floor ?? 0) + 1 })
       : this.storyPrefix();
     this.enemyNameText.setText(
-      `${prefix}  ${this.battle.enemy.name} (${elementName(this.battle.enemy.element)})`,
+      `${prefix}  ${tr(this.battle.enemy.name)} (${tr(elementName(this.battle.enemy.element))})`,
     );
     this.enemyHpText.setText(`${this.battle.enemy.hp} / ${this.battle.enemy.maxHp}`);
 
     const enemy = this.battle.enemy;
     const countdown = enemy.chargeTurns > 0 ? enemy.chargeCountdown : enemy.attackCountdown;
-    const status: string[] = [enemy.chargeTurns > 0 ? `⚡ BIG ATK in ${countdown}` : `ATK in ${countdown}`];
+    const status: string[] = [
+      enemy.chargeTurns > 0 ? t('bigAtkIn', { n: countdown }) : t('atkIn', { n: countdown }),
+    ];
     if (enemy.shieldTurns > 0) {
-      status.push(`🛡 -${Math.round(enemy.shieldReduction * 100)}% dmg (${enemy.shieldTurns})`);
+      status.push(t('shieldStatus', { p: Math.round(enemy.shieldReduction * 100), t: enemy.shieldTurns }));
     }
     if (enemy.lockCountOnAttack > 0) {
-      status.push(`🔒 locks ${enemy.lockCountOnAttack} gems on attack`);
+      status.push(t('lockStatus', { n: enemy.lockCountOnAttack }));
     }
     if (enemy.enraged) {
-      status.push('😡 ENRAGED');
+      status.push(t('enraged'));
     }
     if (enemy.selfHealAmount > 0) {
-      status.push(`💚 +${enemy.selfHealAmount}/${enemy.selfHealEveryTurns}t`);
+      status.push(t('selfHealStatus', { a: enemy.selfHealAmount, t: enemy.selfHealEveryTurns }));
     }
     this.enemyStatusText.setText(status.join('    '));
     this.enemyStatusText.setColor(countdown <= 1 ? '#ff7b7b' : '#9aa3c7');
 
     if (this.battle.turnLimit !== undefined) {
       const remaining = this.battle.turnLimit - this.battle.turnCount;
-      this.turnCounterText.setText(`⏱ Turn ${this.battle.turnCount}/${this.battle.turnLimit}`);
+      this.turnCounterText.setText(t('turnCounter', { c: this.battle.turnCount, l: this.battle.turnLimit }));
       this.turnCounterText.setColor(remaining <= 3 ? '#ff5555' : '#9aa3c7');
       this.turnCounterText.setVisible(true);
     } else {
@@ -550,7 +588,9 @@ export class GameScene extends Phaser.Scene {
     );
     this.playerHpText.setText(`${this.battle.playerHp} / ${this.battle.playerMaxHp}`);
     if (this.battle.poisonTurnsLeft > 0) {
-      this.playerStatusText.setText(`☠ ${this.battle.poisonDamagePerTurn} (${this.battle.poisonTurnsLeft} turns)`);
+      this.playerStatusText.setText(
+        t('poisonStatus', { d: this.battle.poisonDamagePerTurn, t: this.battle.poisonTurnsLeft }),
+      );
       this.playerStatusText.setVisible(true);
     } else {
       this.playerStatusText.setVisible(false);
@@ -559,12 +599,12 @@ export class GameScene extends Phaser.Scene {
   }
 
 
-  /** Compact campaign-position tag for the enemy header, e.g. "🔥 2/3" or "Prologue 1/2". */
+  /** Compact campaign-position tag for the enemy header, e.g. "🔥 2/3" or "序章 1/2". */
   private storyPrefix(): string {
     const branch = branchForLevel(this.levelId);
     if (!branch) return '';
     const position = branch.levelIds.indexOf(this.levelId) + 1;
-    const tag = branch.title.split(' ')[0];
+    const tag = t(`branchTag.${branch.id}` as UiKey);
     return `${tag} ${position}/${branch.levelIds.length}`;
   }
 
@@ -573,8 +613,8 @@ export class GameScene extends Phaser.Scene {
       const cooldown = this.battle.skillCooldowns[index];
       const ready = cooldown === 0 && !this.gameEnded;
       const label = cooldown > 0
-        ? `${character.skillName}\nCD ${cooldown}`
-        : `${character.skillName}\nReady!`;
+        ? `${tr(character.skillName)}\n${t('skillCd', { n: cooldown })}`
+        : `${tr(character.skillName)}\n${t('skillReady')}`;
       const text = this.rosterTexts[index];
       text.setText(label);
       text.setColor(ready ? '#ffe066' : '#5a6280');
@@ -876,10 +916,14 @@ export class GameScene extends Phaser.Scene {
       }
 
       this.score += Math.round(matches.size * 10 * combo);
-      this.scoreText.setText(`Score: ${this.score}`);
+      this.scoreText.setText(t('score', { n: this.score }));
       const bigMatch = groups.some((g) => g.size >= 4);
       this.comboText.setText(
-        combo > 1 ? `${combo} Combo!${bigMatch ? ' Big Match!' : ''}` : bigMatch ? 'Big Match!' : '',
+        combo > 1
+          ? `${t('combo', { n: combo })}${bigMatch ? ` ${t('bigMatch')}` : ''}`
+          : bigMatch
+            ? t('bigMatch')
+            : '',
       );
       this.pulseComboText(combo);
       this.spawnGroupDamageTexts(groups);
@@ -1109,7 +1153,7 @@ export class GameScene extends Phaser.Scene {
     this.refreshHpBars();
 
     if (this.battle.isOutOfTurns()) {
-      this.endGame('Out of Turns');
+      this.endGame('outOfTurns', true);
       return;
     }
 
@@ -1128,12 +1172,12 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (action.becameEnraged) {
-      await showBanner(this, '😡 ENRAGED', 0xff5555);
+      await showBanner(this, t('enraged'), 0xff5555);
       if (this.gameEnded) return;
     }
 
     if (action.chargeInterrupted) {
-      this.spawnFloatingText(this.enemySprite.x, this.enemySprite.y - 60, 'Charge interrupted!', 0xffe066, 18);
+      this.spawnFloatingText(this.enemySprite.x, this.enemySprite.y - 60, t('chargeInterrupted'), 0xffe066, 18);
     }
 
     if (!action.attacks) return;
@@ -1178,7 +1222,7 @@ export class GameScene extends Phaser.Scene {
       this.spawnFloatingText(
         this.playerHpBarX + HP_BAR_WIDTH / 2,
         this.playerHpBarY - 24,
-        '☠ Poisoned!',
+        t('poisonedFloat'),
         0x9b59b6,
         16,
       );
@@ -1196,9 +1240,9 @@ export class GameScene extends Phaser.Scene {
         const stats = run ? { ...run.stats, relicsCollected: [...run.stats.relicsCollected] } : undefined;
         savePlayerData(addCurrency(loadPlayerData(), RUN_LOSS_CURRENCY));
         setActiveRun(null);
-        this.endGame(`Run Failed...\n+${RUN_LOSS_CURRENCY} 💎`, stats);
+        this.endGame('runFailed', true, { currencyGain: RUN_LOSS_CURRENCY, stats });
       } else {
-        this.endGame('Game Over');
+        this.endGame('gameOver', true);
       }
     }
   }
@@ -1288,7 +1332,7 @@ export class GameScene extends Phaser.Scene {
     const total = this.battle.levels[this.battle.levelIndex].length;
     await showBanner(
       this,
-      `Wave ${this.battle.enemyIndexInLevel + 1} / ${total} — ${this.battle.enemy.name}`,
+      t('wave', { x: this.battle.enemyIndexInLevel + 1, y: total, name: tr(this.battle.enemy.name) }),
       this.theme.ambient,
     );
     if (this.gameEnded) return;
@@ -1316,29 +1360,34 @@ export class GameScene extends Phaser.Scene {
     data = recordLevelClear(data, this.levelId, stars);
     savePlayerData(data);
 
-    // Auto-continue only within a branch; a branch boss sends the player
-    // back to the map to pick their next front.
-    const buttons: { label: string; onClick: () => void }[] = [];
-    if (nextLevelId) {
-      buttons.push({
-        label: 'Next Level ▶',
-        onClick: () => this.scene.restart({ levelId: nextLevelId }),
-      });
-    }
-    buttons.push({ label: 'Back to Map', onClick: () => this.scene.start('LevelSelectScene') });
+    // Composed as a closure so the language toggle can rebuild the panel.
+    const show = () => {
+      // Auto-continue only within a branch; a branch boss sends the player
+      // back to the map to pick their next front.
+      const buttons: { label: string; onClick: () => void }[] = [];
+      if (nextLevelId) {
+        buttons.push({
+          label: t('nextLevel'),
+          onClick: () => this.scene.restart({ levelId: nextLevelId }),
+        });
+      }
+      buttons.push({ label: t('backToMap'), onClick: () => this.scene.start('LevelSelectScene') });
 
-    this.showEndPanel({
-      title: 'Level Clear!',
-      titleColor: '#ffe066',
-      stars,
-      lines: [
-        `Score: ${this.score}`,
-        `Reward: +${currencyEarned} 💎`,
-        isCampaignFinale ? 'The Ancient Dragon has fallen. The realm is saved!' : '',
-        isBranchBossClear ? `${branch?.title ?? 'Branch'} cleared! Choose your next front on the map.` : '',
-      ].filter(Boolean),
-      buttons,
-    });
+      this.showEndPanel({
+        title: t('levelClear'),
+        titleColor: '#ffe066',
+        stars,
+        lines: [
+          t('score', { n: this.score }),
+          t('reward', { n: currencyEarned }),
+          isCampaignFinale ? t('gameClearLine') : '',
+          isBranchBossClear ? t('branchClearLine', { branch: tr(branch?.title ?? '') }) : '',
+        ].filter(Boolean),
+        buttons,
+      });
+    };
+    this.activeOverlayRedraw = show;
+    show();
   }
 
   /**
@@ -1363,7 +1412,7 @@ export class GameScene extends Phaser.Scene {
         const stats = { ...run.stats, relicsCollected: [...run.stats.relicsCollected] };
         savePlayerData(addCurrency(loadPlayerData(), RUN_WIN_CURRENCY));
         setActiveRun(null);
-        this.endGame(`Run Complete!\n+${RUN_WIN_CURRENCY} 💎`, stats);
+        this.endGame('runComplete', false, { currencyGain: RUN_WIN_CURRENCY, stats });
         return;
       }
       advanceFloor(run);
@@ -1379,28 +1428,42 @@ export class GameScene extends Phaser.Scene {
     this.scene.start('RunMapScene');
   }
 
-  /** Structured end-of-battle results panel (victory or defeat, story or run). */
-  private endGame(message: string, stats?: RunStats): void {
+  /** Structured end-of-battle results panel (victory or defeat, story or run).
+   * Takes a title KEY (not text) so the language toggle can rebuild it. */
+  private endGame(
+    titleKey: UiKey,
+    isDefeat: boolean,
+    opts: { currencyGain?: number; stats?: RunStats } = {},
+  ): void {
     this.gameEnded = true;
 
-    const [title, ...rest] = message.split('\n');
-    const lines = [...rest];
-    if (stats) {
-      lines.push(
-        `Battles Won: ${stats.battlesWon}`,
-        `Elites Defeated: ${stats.elitesKilled}`,
-        `Floors Cleared: ${stats.floorsCleared}`,
-        `Relics: ${stats.relicsCollected.length > 0 ? stats.relicsCollected.join(', ') : 'none'}`,
-      );
-    }
-    const isDefeat = /over|fail/i.test(title);
+    const show = () => {
+      const lines: string[] = [];
+      if (opts.currencyGain !== undefined) {
+        lines.push(t('currencyGain', { n: opts.currencyGain }));
+      }
+      if (opts.stats) {
+        const relicList =
+          opts.stats.relicsCollected.length > 0
+            ? opts.stats.relicsCollected.map((name) => tr(name)).join(getLang() === 'zh' ? '、' : ', ')
+            : t('none');
+        lines.push(
+          t('statBattles', { n: opts.stats.battlesWon }),
+          t('statElites', { n: opts.stats.elitesKilled }),
+          t('statFloors', { n: opts.stats.floorsCleared }),
+          t('relicsLine', { list: relicList }),
+        );
+      }
 
-    this.showEndPanel({
-      title,
-      titleColor: isDefeat ? '#ff5555' : '#ffe066',
-      lines,
-      buttons: [{ label: 'Back to Menu', onClick: () => this.scene.start('LevelSelectScene') }],
-    });
+      this.showEndPanel({
+        title: t(titleKey),
+        titleColor: isDefeat ? '#ff5555' : '#ffe066',
+        lines,
+        buttons: [{ label: t('backToMenu'), onClick: () => this.scene.start('LevelSelectScene') }],
+      });
+    };
+    this.activeOverlayRedraw = show;
+    show();
   }
 
   /** Draws the shared results panel: dark overlay, framed card, title, optional stars, lines, buttons. */
@@ -1412,45 +1475,61 @@ export class GameScene extends Phaser.Scene {
     buttons: { label: string; onClick: () => void }[];
   }): void {
     this.gameEnded = true;
+    // Tear down any previous panel first — the language toggle rebuilds the
+    // panel in place by calling the composing closure again.
+    for (const obj of this.endPanelObjects) obj.destroy();
+    this.endPanelObjects = [];
+    const track = <T extends Phaser.GameObjects.GameObject>(obj: T): T => {
+      this.endPanelObjects.push(obj);
+      return obj;
+    };
     const cx = this.scale.width / 2;
     const cy = this.scale.height / 2;
 
-    this.add
-      .rectangle(cx, cy, this.scale.width, this.scale.height, 0x000000, 0.7)
-      .setDepth(300)
-      .setInteractive(); // swallow clicks below
+    track(
+      this.add
+        .rectangle(cx, cy, this.scale.width, this.scale.height, 0x000000, 0.7)
+        .setDepth(300)
+        .setInteractive(), // swallow clicks below
+    );
 
     const bodyLines = opts.lines.filter(Boolean);
     const panelHeight =
       150 + (opts.stars !== undefined ? 56 : 0) + bodyLines.length * 24 + 64;
-    const panel = this.add
-      .rectangle(cx, cy, 460, panelHeight, 0x1b1f2e, 0.97)
-      .setStrokeStyle(2, 0x5a6cad)
-      .setDepth(301);
+    const panel = track(
+      this.add
+        .rectangle(cx, cy, 460, panelHeight, 0x1b1f2e, 0.97)
+        .setStrokeStyle(2, 0x5a6cad)
+        .setDepth(301),
+    );
     panel.setScale(0.8);
     panel.setAlpha(0);
     this.tweens.add({ targets: panel, scale: 1, alpha: 1, duration: 220, ease: 'Back.easeOut' });
 
     let y = cy - panelHeight / 2 + 52;
-    this.add
-      .text(cx, y, opts.title, {
-        fontSize: '34px',
-        color: opts.titleColor,
-        fontStyle: 'bold',
-        stroke: '#000000',
-        strokeThickness: 4,
-      })
-      .setOrigin(0.5)
-      .setDepth(302);
+    track(
+      this.add
+        .text(cx, y, opts.title, {
+          fontSize: '34px',
+          color: opts.titleColor,
+          fontStyle: 'bold',
+          stroke: '#000000',
+          strokeThickness: 4,
+        })
+        .setOrigin(0.5)
+        .setDepth(302),
+    );
     y += 44;
 
     if (opts.stars !== undefined) {
       const starText = '★'.repeat(opts.stars) + '☆'.repeat(Math.max(0, 3 - opts.stars));
-      const starsLabel = this.add
-        .text(cx, y + 14, starText, { fontSize: '40px', color: '#ffe066' })
-        .setOrigin(0.5)
-        .setDepth(302)
-        .setScale(0);
+      const starsLabel = track(
+        this.add
+          .text(cx, y + 14, starText, { fontSize: '40px', color: '#ffe066' })
+          .setOrigin(0.5)
+          .setDepth(302)
+          .setScale(0),
+      );
       this.tweens.add({
         targets: starsLabel,
         scale: 1,
@@ -1462,15 +1541,17 @@ export class GameScene extends Phaser.Scene {
     }
 
     for (const line of bodyLines) {
-      this.add
-        .text(cx, y + 10, line, {
-          fontSize: '16px',
-          color: '#c6cdea',
-          align: 'center',
-          wordWrap: { width: 420 },
-        })
-        .setOrigin(0.5, 0)
-        .setDepth(302);
+      track(
+        this.add
+          .text(cx, y + 10, line, {
+            fontSize: '16px',
+            color: '#c6cdea',
+            align: 'center',
+            wordWrap: { width: 420 },
+          })
+          .setOrigin(0.5, 0)
+          .setDepth(302),
+      );
       y += 24;
     }
 
@@ -1480,15 +1561,19 @@ export class GameScene extends Phaser.Scene {
     const totalWidth = opts.buttons.length * buttonWidth + (opts.buttons.length - 1) * gap;
     opts.buttons.forEach((button, index) => {
       const x = cx - totalWidth / 2 + buttonWidth / 2 + index * (buttonWidth + gap);
-      const rect = this.add
-        .rectangle(x, buttonY, buttonWidth, 44, index === 0 ? 0x33406b : 0x2a2f45)
-        .setStrokeStyle(2, 0x5a6cad)
-        .setDepth(302)
-        .setInteractive({ useHandCursor: true });
-      this.add
-        .text(x, buttonY, button.label, { fontSize: '17px', color: '#ffffff', fontStyle: 'bold' })
-        .setOrigin(0.5)
-        .setDepth(303);
+      const rect = track(
+        this.add
+          .rectangle(x, buttonY, buttonWidth, 44, index === 0 ? 0x33406b : 0x2a2f45)
+          .setStrokeStyle(2, 0x5a6cad)
+          .setDepth(302)
+          .setInteractive({ useHandCursor: true }),
+      );
+      track(
+        this.add
+          .text(x, buttonY, button.label, { fontSize: '17px', color: '#ffffff', fontStyle: 'bold' })
+          .setOrigin(0.5)
+          .setDepth(303),
+      );
       rect.on('pointerover', () => rect.setFillStyle(0x435180));
       rect.on('pointerout', () => rect.setFillStyle(index === 0 ? 0x33406b : 0x2a2f45));
       rect.on('pointerdown', button.onClick);

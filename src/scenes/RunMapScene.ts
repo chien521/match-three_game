@@ -18,8 +18,10 @@ import {
 } from '../game/run';
 import { elementAbbr } from '../game/team';
 import { characterEmoji } from '../game/characterArt';
+import { getLang, t, tr } from '../game/i18n';
 import { drawThemedBackground, themeForChapter } from './battleFx';
 import { drawAvatar } from './avatarUi';
+import { drawLanguageToggle } from './langToggle';
 
 const NODE_RADIUS = 26;
 
@@ -63,6 +65,7 @@ export class RunMapScene extends Phaser.Scene {
     this.drawHeader();
     this.drawMap();
     this.drawFooter();
+    drawLanguageToggle(this, 20, 18, () => this.scene.restart());
 
     if (this.run.pendingReward === 'relic') {
       this.showRelicChoice();
@@ -84,7 +87,7 @@ export class RunMapScene extends Phaser.Scene {
 
   private drawHeader(): void {
     this.add
-      .text(this.scale.width / 2, 36, `Roguelike Tower — Floor ${this.run.floor + 1} / ${FLOOR_COUNT}`, {
+      .text(this.scale.width / 2, 36, t('runHeader', { f: this.run.floor + 1, n: FLOOR_COUNT }), {
         fontSize: '26px',
         color: '#ffffff',
         fontStyle: 'bold',
@@ -93,29 +96,31 @@ export class RunMapScene extends Phaser.Scene {
 
     const maxHp = runTeamMaxHp(this.run);
     this.add
-      .text(this.scale.width / 2, 72, `HP ${this.run.teamHp} / ${maxHp}`, {
+      .text(this.scale.width / 2, 72, t('runHp', { a: this.run.teamHp, b: maxHp }), {
         fontSize: '18px',
         color: this.run.teamHp / maxHp < 0.35 ? '#ff7b7b' : '#2ecc71',
         fontStyle: 'bold',
       })
       .setOrigin(0.5);
 
-    // Team as an avatar row (text names overflow at 5 members); first word
-    // of the name only, so neighbors never collide.
+    // Team as an avatar row (text names overflow at 5 members). English shows
+    // the first word only so neighbors never collide; Chinese names are short
+    // (and have no spaces to split on), so they render in full.
     const gap = 84;
     const startX = this.scale.width / 2 - ((this.run.team.length - 1) * gap) / 2;
     this.run.team.forEach((character, index) => {
       const x = startX + index * gap;
       drawAvatar(this, x, 108, character, 17);
+      const shortName = getLang() === 'zh' ? tr(character.name) : character.name.split(' ')[0];
       this.add
-        .text(x, 128, character.name.split(' ')[0], { fontSize: '10px', color: '#9aa3c7' })
+        .text(x, 128, shortName, { fontSize: '10px', color: '#9aa3c7' })
         .setOrigin(0.5, 0);
     });
 
     const relicLabel =
       this.run.relics.length > 0
-        ? `Relics: ${this.run.relics.map((r) => r.name).join(', ')}`
-        : 'Relics: none yet';
+        ? t('relicsLine', { list: this.run.relics.map((r) => tr(r.name)).join(getLang() === 'zh' ? '、' : ', ') })
+        : t('relicsNone');
     this.add
       .text(this.scale.width / 2, 146, relicLabel, {
         fontSize: '13px',
@@ -162,7 +167,7 @@ export class RunMapScene extends Phaser.Scene {
 
       if (node.recruit && node.type === 'battle') {
         this.add
-          .text(x, y + NODE_RADIUS + 4, '+ally', { fontSize: '11px', color: '#7dd3fc' })
+          .text(x, y + NODE_RADIUS + 4, t('allyTag'), { fontSize: '11px', color: '#7dd3fc' })
           .setOrigin(0.5, 0)
           .setAlpha(isAvailable || isCurrent || isVisited ? 1 : 0.45);
       }
@@ -178,7 +183,7 @@ export class RunMapScene extends Phaser.Scene {
 
   private drawFooter(): void {
     const quit = this.add
-      .text(this.scale.width / 2, this.scale.height - 26, 'Abandon Run', {
+      .text(this.scale.width / 2, this.scale.height - 26, t('abandonRun'), {
         fontSize: '14px',
         color: '#9aa3c7',
         backgroundColor: '#1b1f2e',
@@ -198,10 +203,10 @@ export class RunMapScene extends Phaser.Scene {
         return;
       }
       confirming = true;
-      quit.setText('Really abandon? (click again)').setColor('#ff5555');
+      quit.setText(t('abandonConfirm')).setColor('#ff5555');
       revertEvent = this.time.delayedCall(3000, () => {
         confirming = false;
-        quit.setText('Abandon Run').setColor('#9aa3c7');
+        quit.setText(t('abandonRun')).setColor('#9aa3c7');
       });
     });
   }
@@ -222,24 +227,28 @@ export class RunMapScene extends Phaser.Scene {
         break;
       case 'rest':
         this.showChoiceOverlay(
-          'Make Camp',
+          t('makeCamp'),
           [
             {
-              label: 'Rest — heal 30% HP',
-              description: "Restore 30% of your team's max HP.",
+              label: t('restOption'),
+              description: t('restDesc'),
             },
             {
-              label: 'Train — random ally +15% ATK/HP',
-              description: 'Permanently boosts one random team member for the rest of this run.',
+              label: t('trainOption'),
+              description: t('trainDesc'),
             },
           ],
           (index) => {
             if (index === 0) {
               const gained = applyRest(this.run);
-              return `Rested at the campfire. +${gained} HP`;
+              return t('restedToast', { n: gained });
             }
             const result = trainRandomMember(this.run);
-            return `${result.character.name} trained! +${result.attackGain} ATK, +${result.hpGain} HP`;
+            return t('trainedToast', {
+              name: tr(result.character.name),
+              a: result.attackGain,
+              h: result.hpGain,
+            });
           },
           false, // no Skip — the node is already consumed
         );
@@ -327,7 +336,7 @@ export class RunMapScene extends Phaser.Scene {
 
     if (skippable) {
       const skip = this.add
-        .text(cx, 260 + options.length * 110, 'Skip', {
+        .text(cx, 260 + options.length * 110, t('skip'), {
           fontSize: '15px',
           color: '#9aa3c7',
           backgroundColor: '#1b1f2e',
@@ -350,8 +359,8 @@ export class RunMapScene extends Phaser.Scene {
       return;
     }
     this.showChoiceOverlay(
-      'Choose a Relic',
-      choices.map((r) => ({ label: r.name, description: r.description })),
+      t('chooseRelic'),
+      choices.map((r) => ({ label: tr(r.name), description: tr(r.description) })),
       (index) => addRelic(this.run, choices[index]),
       true,
     );
@@ -365,10 +374,15 @@ export class RunMapScene extends Phaser.Scene {
     }
     const teamFull = this.run.team.length >= 5;
     this.showChoiceOverlay(
-      teamFull ? 'Recruit an Ally (replaces your last member)' : 'Recruit an Ally',
+      teamFull ? t('recruitAllyFull') : t('recruitAlly'),
       choices.map((c) => ({
-        label: `${characterEmoji(c.id)} ${c.name} [${c.rarity}]`,
-        description: `${elementAbbr(c.element)} · HP ${c.maxHp} · ATK ${c.attack} · ${c.skillName}`,
+        label: `${characterEmoji(c.id)} ${tr(c.name)} [${tr(c.rarity)}]`,
+        description: t('recruitDesc', {
+          el: tr(elementAbbr(c.element)),
+          h: c.maxHp,
+          a: c.attack,
+          skill: tr(c.skillName),
+        }),
       })),
       (index) => recruit(this.run, choices[index]),
       true,

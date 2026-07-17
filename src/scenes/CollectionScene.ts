@@ -8,8 +8,10 @@ import {
 } from '../game/playerData';
 import type { Character } from '../game/team';
 import { elementName } from '../game/team';
+import { t, tr } from '../game/i18n';
 import { drawThemedBackground } from './battleFx';
 import { drawAvatar } from './avatarUi';
+import { drawLanguageToggle } from './langToggle';
 
 const RARITY_COLORS: Record<string, number> = {
   Common: 0x9aa3c7,
@@ -46,7 +48,7 @@ export class CollectionScene extends Phaser.Scene {
     drawThemedBackground(this, { top: 0x0e1e2b, bottom: 0x10131d, ambient: 0x7dd3fc });
 
     this.add
-      .text(this.scale.width / 2, 42, 'Collection & Team', {
+      .text(this.scale.width / 2, 42, t('collectionTitle'), {
         fontSize: '34px',
         color: '#ffffff',
         fontStyle: 'bold',
@@ -59,8 +61,14 @@ export class CollectionScene extends Phaser.Scene {
       .text(this.scale.width / 2, 78, '', { fontSize: '14px', color: '#9aa3c7' })
       .setOrigin(0.5);
 
+    drawLanguageToggle(this, 20, 18, () => {
+      // Persist any in-progress team edits before the restart redraws.
+      savePlayerData(setActiveTeam(loadPlayerData(), this.activeTeamIds));
+      this.scene.restart();
+    });
+
     const backButton = this.add
-      .text(this.scale.width / 2, this.scale.height - 36, 'Back to Menu', {
+      .text(this.scale.width / 2, this.scale.height - 36, t('backToMenu'), {
         fontSize: '16px',
         color: '#ffffff',
         backgroundColor: '#2a2f45',
@@ -83,7 +91,7 @@ export class CollectionScene extends Phaser.Scene {
 
     this.hintText
       .setColor('#9aa3c7')
-      .setText(`Tap a card to add/remove — team ${this.activeTeamIds.length}/${MAX_TEAM_SIZE}. Leader = slot 1.`);
+      .setText(t('collectionHint', { n: this.activeTeamIds.length, m: MAX_TEAM_SIZE }));
 
     const owned = getOwnedCharacters(loadPlayerData());
     const byId = new Map(owned.map((entry) => [entry.character.id, entry]));
@@ -158,7 +166,7 @@ export class CollectionScene extends Phaser.Scene {
       this.dynamic.push(avatar);
 
       const name = this.add
-        .text(x, y - CARD_HEIGHT / 2 + 64, character.name, {
+        .text(x, y - CARD_HEIGHT / 2 + 64, tr(character.name), {
           fontSize: '13px',
           color: `#${frameColor.toString(16).padStart(6, '0')}`,
           fontStyle: 'bold',
@@ -172,7 +180,7 @@ export class CollectionScene extends Phaser.Scene {
         .text(
           x,
           y + CARD_HEIGHT / 2 - 44,
-          `${elementName(character.element)} · Lv.${copies}\nATK ${character.attack}   HP ${character.maxHp}`,
+          `${tr(elementName(character.element))} · ${t('lvLabel', { n: copies })}\n${t('cardStats', { a: character.attack, h: character.maxHp })}`,
           { fontSize: '11px', color: '#9aa3c7', align: 'center', lineSpacing: 3 },
         )
         .setOrigin(0.5, 0);
@@ -208,7 +216,7 @@ export class CollectionScene extends Phaser.Scene {
         color: '#5a6280',
       })
       .setOrigin(0.5, 0);
-    legend.setText('Card frame = rarity  ·  gold glow = in team');
+    legend.setText(t('collectionLegend'));
     this.dynamic.push(legend);
   }
 
@@ -220,7 +228,7 @@ export class CollectionScene extends Phaser.Scene {
     } else {
       this.hintText
         .setColor('#ff6161')
-        .setText(`Team is full (max ${MAX_TEAM_SIZE}) — tap a member to remove first.`);
+        .setText(t('teamFull', { m: MAX_TEAM_SIZE }));
       return;
     }
     savePlayerData(setActiveTeam(loadPlayerData(), this.activeTeamIds));
