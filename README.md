@@ -48,3 +48,23 @@ The production build (`dist/`) targets deployment as a standalone WebGL/HTML5 ap
 ### Deploying to GitHub Pages
 
 Every push to `main` runs [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml), which builds the project and publishes `/dist` to GitHub Pages automatically — that's what powers the [live demo](https://chien521.github.io/match-three_game/) link above. No manual `gh-pages` branch or build step needed; just push to `main` and the Actions run handles the rest (enable it once under the repo's **Settings → Pages → Source: GitHub Actions**).
+
+### Publishing to VIVERSE
+
+This is a separate, additional target from GitHub Pages — publishing here doesn't change or replace the Pages deployment above.
+
+1. Install the [`viverse-cli`](https://developers.viverse.com/) and log in (interactive, one-time per machine):
+   ```bash
+   viverse-cli auth login
+   ```
+2. First publish — creates the World app and uploads the build in one step:
+   ```bash
+   npm run build
+   viverse-cli app publish ./dist --auto-create-app --name "轉珠 Match-3" --type world
+   ```
+   (`--type world` is required for a web/iframe app — the CLI defaults to `mobile` otherwise.) Note the App ID it prints.
+3. Fill in that App ID in [`CONTRACT.json`](./CONTRACT.json)'s `app.appId`, and set it locally as `VIVERSE_APP_ID` (e.g. in a git-ignored `.env` or your shell profile — the App ID itself isn't secret, but don't commit any auth token alongside it).
+4. Every future publish is then just:
+   ```bash
+   npm run publish:viverse
+   ```
