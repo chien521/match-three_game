@@ -52,6 +52,11 @@ location — import it via `createRequire('<repo>/package.json')`.
   scenes (restarts the scene); top-right ~(755,20) in battle (live refresh, no
   reset). Headless Edge auto-detects zh — screens may boot in Chinese.
 
+- Skill cooldowns now persist across story "Next Level ▶" and roguelike node
+  transitions (see game/storyCooldowns.ts + run.ts's skillCooldowns field) —
+  a level cleared with a skill on cooldown should show it still cooling down
+  in the next level's intro/roster, not reset to Ready.
+
 ## Gotchas
 - Free-drag: hold gem keeps following pointer; matches resolve on release.
 - Turn timer is 5s from pointerdown — keep scripted drags short.

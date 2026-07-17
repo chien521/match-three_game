@@ -453,6 +453,148 @@ describe('BattleState expanded enemy skills', () => {
   });
 });
 
+describe('BattleState new player skill effects', () => {
+  const shieldTeam: Character[] = [
+    {
+      id: 'guard',
+      name: 'Guard',
+      rarity: 'Rare',
+      element: 2,
+      maxHp: 300,
+      attack: 20,
+      skillName: 'Bramble Guard',
+      skillCooldownTurns: 4,
+      skillEffect: 'shieldSelf',
+      skillShieldReduction: 0.4,
+      skillShieldTurns: 2,
+    },
+  ];
+
+  it('shieldSelf reduces incoming damage for exactly N attacks, then stops', () => {
+    // shieldTeam's leader is Wood (element 2); the enemy is Light (element 3),
+    // which is neutral against Wood (multiplier 1x) — keeps the damage math
+    // simple and comparable across hits.
+    const battle = new BattleState(0, shieldTeam, {
+      levels: [[{ name: 'Basher', maxHp: 100, attack: 100, element: 3 }]],
+    });
+    const result = battle.useSkill(0);
+    expect(result).toEqual({ effect: 'shieldSelf', turns: 2, reduction: 0.4, enemyDefeated: false });
+    expect(battle.playerShieldTurns).toBe(2);
+
+    const hpBefore = battle.playerHp;
+    battle.applyEnemyAttack(); // 1st shielded attack
+    const firstHit = hpBefore - battle.playerHp;
+    expect(battle.playerShieldTurns).toBe(1);
+
+    const hpBefore2 = battle.playerHp;
+    battle.applyEnemyAttack(); // 2nd shielded attack
+    const secondHit = hpBefore2 - battle.playerHp;
+    expect(battle.playerShieldTurns).toBe(0);
+    expect(battle.playerShieldReduction).toBe(0); // reset once expired
+    expect(firstHit).toBe(secondHit); // both reduced by the same 40%
+
+    const hpBefore3 = battle.playerHp;
+    battle.applyEnemyAttack(); // 3rd attack: shield expired, full damage
+    const thirdHit = hpBefore3 - battle.playerHp;
+    expect(thirdHit).toBeGreaterThan(firstHit);
+  });
+
+  const buffTeam: Character[] = [
+    {
+      id: 'buffer',
+      name: 'Buffer',
+      rarity: 'Rare',
+      element: 3,
+      maxHp: 60,
+      attack: 20,
+      skillName: 'Solar Blessing',
+      skillCooldownTurns: 5,
+      skillEffect: 'teamBuff',
+      skillBuffMultiplier: 2,
+      skillBuffTurns: 2,
+    },
+  ];
+
+  it('teamBuff scales match damage while active and reverts to 1x once it expires', () => {
+    const battle = new BattleState(0, buffTeam, {
+      levels: [[{ name: 'Target', maxHp: 1000, attack: 1, element: 0 }]],
+    });
+    const result = battle.useSkill(0);
+    expect(result).toEqual({ effect: 'teamBuff', multiplier: 2, turns: 2, enemyDefeated: false });
+    expect(battle.attackBuffMultiplier).toBe(2);
+
+    battle.tickCooldowns(); // turn 1 of 2
+    expect(battle.attackBuffMultiplier).toBe(2);
+    expect(battle.attackBuffTurns).toBe(1);
+
+    battle.tickCooldowns(); // turn 2 of 2: expires
+    expect(battle.attackBuffTurns).toBe(0);
+    expect(battle.attackBuffMultiplier).toBe(1);
+  });
+
+  const stunTeam: Character[] = [
+    {
+      id: 'stunner',
+      name: 'Stunner',
+      rarity: 'Rare',
+      element: 4,
+      maxHp: 60,
+      attack: 20,
+      skillName: 'Night Veil',
+      skillCooldownTurns: 4,
+      skillEffect: 'stunEnemy',
+      skillStunTurns: 2,
+    },
+  ];
+
+  it('stunEnemy delays the attack countdown by the configured number of turns', () => {
+    const battle = new BattleState(0, stunTeam, {
+      levels: [[{ name: 'Slowed', maxHp: 100, attack: 10, element: 0, attackInterval: 3 }]],
+    });
+    const countdownBefore = battle.enemy.attackCountdown;
+    const result = battle.useSkill(0);
+    expect(result).toEqual({ effect: 'stunEnemy', turns: 2, enemyDefeated: false });
+    expect(battle.enemy.attackCountdown).toBe(countdownBefore + 2);
+  });
+
+  const cleanseTeam: Character[] = [
+    {
+      id: 'cleanser',
+      name: 'Cleanser',
+      rarity: 'Rare',
+      element: 2,
+      maxHp: 60,
+      attack: 20,
+      skillName: 'Cleansing Growth',
+      skillCooldownTurns: 4,
+      skillEffect: 'cleanse',
+    },
+  ];
+
+  it('cleanse removes player poison but does not touch petrified board state (board is a scene concern)', () => {
+    const battle = new BattleState(0, cleanseTeam, {
+      levels: [
+        [
+          {
+            name: 'Poisoner',
+            maxHp: 100,
+            attack: 10,
+            element: 0,
+            skills: [{ type: 'poison', damagePerTurn: 10, durationTurns: 5 }],
+          },
+        ],
+      ],
+    });
+    battle.tickEnemyTurn(); // enemy attacks (interval 1), applies poison
+    expect(battle.poisonTurnsLeft).toBeGreaterThan(0);
+
+    const result = battle.useSkill(0);
+    expect(result).toEqual({ effect: 'cleanse', enemyDefeated: false });
+    expect(battle.poisonTurnsLeft).toBe(0);
+    expect(battle.poisonDamagePerTurn).toBe(0);
+  });
+});
+
 describe('BattleState turn limits', () => {
   it('has no turn limit by default (isOutOfTurns is always false)', () => {
     const battle = new BattleState(0, testTeam);

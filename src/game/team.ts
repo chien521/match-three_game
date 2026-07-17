@@ -43,8 +43,41 @@ interface ExtendTimeSkill {
   skillPower: number;
 }
 
+/** Reduces incoming enemy attack damage by `skillShieldReduction` for the next `skillShieldTurns` attacks. */
+interface ShieldSelfSkill {
+  skillEffect: 'shieldSelf';
+  skillShieldReduction: number;
+  skillShieldTurns: number;
+}
+
+/** Multiplies the team's match damage by `skillBuffMultiplier` for `skillBuffTurns` player turns. */
+interface TeamBuffSkill {
+  skillEffect: 'teamBuff';
+  skillBuffMultiplier: number;
+  skillBuffTurns: number;
+}
+
+/** Delays the enemy's next attack by `skillStunTurns` turns. */
+interface StunEnemySkill {
+  skillEffect: 'stunEnemy';
+  skillStunTurns: number;
+}
+
+/** Cures the player's poison status (does not remove petrified board cells — those need a match). */
+interface CleanseSkill {
+  skillEffect: 'cleanse';
+}
+
 /** Discriminated union on `skillEffect` — each variant only carries the fields it needs. */
-export type CharacterSkill = DamageSkill | HealSkill | ConvertSkill | ExtendTimeSkill;
+export type CharacterSkill =
+  | DamageSkill
+  | HealSkill
+  | ConvertSkill
+  | ExtendTimeSkill
+  | ShieldSelfSkill
+  | TeamBuffSkill
+  | StunEnemySkill
+  | CleanseSkill;
 
 export type Character = {
   id: string;
@@ -97,10 +130,11 @@ export const DEFAULT_TEAM: Character[] = [
     element: 2,
     maxHp: 65,
     attack: 70,
-    skillName: 'Piercing Shot',
-    skillCooldownTurns: 3,
-    skillEffect: 'damage',
-    skillPower: 120,
+    skillName: 'Bramble Guard',
+    skillCooldownTurns: 4,
+    skillEffect: 'shieldSelf',
+    skillShieldReduction: 0.4,
+    skillShieldTurns: 3,
   },
   {
     id: 'solaris',
@@ -109,10 +143,11 @@ export const DEFAULT_TEAM: Character[] = [
     element: 3,
     maxHp: 55,
     attack: 90,
-    skillName: 'Radiant Burst',
+    skillName: 'Solar Blessing',
     skillCooldownTurns: 5,
-    skillEffect: 'damage',
-    skillPower: 220,
+    skillEffect: 'teamBuff',
+    skillBuffMultiplier: 1.6,
+    skillBuffTurns: 3,
   },
   {
     id: 'nightshade',
@@ -121,10 +156,10 @@ export const DEFAULT_TEAM: Character[] = [
     element: 4,
     maxHp: 55,
     attack: 85,
-    skillName: 'Shadow Strike',
+    skillName: 'Night Veil',
     skillCooldownTurns: 4,
-    skillEffect: 'damage',
-    skillPower: 170,
+    skillEffect: 'stunEnemy',
+    skillStunTurns: 2,
   },
 ];
 
@@ -221,8 +256,9 @@ export function computeGroupBaseDamage(
  * every group, sums the attack of team members sharing that group's element,
  * scaled by the group's size, the group-size bonus, and elemental advantage
  * against the target's element; the grand total is then scaled by the combo
- * multiplier and the leader's passive bonus (team[0].leaderSkill), if its
- * conditions are met.
+ * multiplier, the leader's passive bonus (team[0].leaderSkill) if its
+ * conditions are met, and `extraMultiplier` (e.g. a temporary "teamBuff"
+ * active-skill effect — see BattleState.attackBuffMultiplier).
  */
 export function computeMatchDamage(
   groups: MatchGroup[],
@@ -230,6 +266,7 @@ export function computeMatchDamage(
   team: Character[],
   targetElement: number,
   relicMods?: RelicModifiers,
+  extraMultiplier = 1,
 ): number {
   const leaderSkill = team[0]?.leaderSkill;
   let total = 0;
@@ -253,7 +290,7 @@ export function computeMatchDamage(
     total += amount;
   }
   const allMultiplier = relicMods?.allDamageMultiplier ?? 1;
-  return Math.round(total * comboMultiplier(combo) * allMultiplier);
+  return Math.round(total * comboMultiplier(combo) * allMultiplier * extraMultiplier);
 }
 
 

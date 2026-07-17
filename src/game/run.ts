@@ -45,6 +45,8 @@ export interface RunState {
   visitedNodeIds: string[];
   team: Character[];
   teamHp: number;
+  /** Skill cooldowns carried across battles/nodes (1:1 index-aligned with `team`); see recruit(). */
+  skillCooldowns: number[];
   relics: Relic[];
   pendingReward: PendingReward;
   stats: RunStats;
@@ -68,6 +70,7 @@ interface RunSnapshot {
   visitedNodeIds: string[];
   teamIds: string[];
   teamHp: number;
+  skillCooldowns: number[];
   relicIds: string[];
   pendingReward: PendingReward;
   stats: RunStats;
@@ -93,6 +96,7 @@ export function saveRunSnapshot(run: RunState | null): void {
       visitedNodeIds: run.visitedNodeIds,
       teamIds: run.team.map((c) => c.id),
       teamHp: run.teamHp,
+      skillCooldowns: run.skillCooldowns,
       relicIds: run.relics.map((r) => r.id),
       pendingReward: run.pendingReward,
       stats: run.stats,
@@ -132,6 +136,10 @@ export function loadRunSnapshot(): RunState | null {
       visitedNodeIds: snapshot.visitedNodeIds,
       team,
       teamHp: snapshot.teamHp,
+      // Older snapshots predate skillCooldowns; pad/truncate to stay index-aligned with team.
+      skillCooldowns: Array.isArray(snapshot.skillCooldowns)
+        ? team.map((_, i) => snapshot.skillCooldowns[i] ?? 0)
+        : team.map(() => 0),
       relics,
       pendingReward: snapshot.pendingReward,
       stats: snapshot.stats ?? { battlesWon: 0, elitesKilled: 0, floorsCleared: 0, relicsCollected: [] },
@@ -170,6 +178,7 @@ export function createRun(rng: () => number = Math.random): RunState {
     visitedNodeIds: [],
     team: DEFAULT_TEAM.slice(0, RUN_STARTING_TEAM_SIZE),
     teamHp: teamTotalHp(DEFAULT_TEAM.slice(0, RUN_STARTING_TEAM_SIZE)),
+    skillCooldowns: DEFAULT_TEAM.slice(0, RUN_STARTING_TEAM_SIZE).map(() => 0),
     relics: [],
     pendingReward: null,
     stats: { battlesWon: 0, elitesKilled: 0, floorsCleared: 0, relicsCollected: [] },
@@ -375,12 +384,14 @@ export function recruitChoices(run: RunState, count = 3, rng: () => number = Mat
 export function recruit(run: RunState, character: Character, replaceIndex?: number): void {
   if (run.team.length < MAX_TEAM_SIZE) {
     run.team.push(character);
+    run.skillCooldowns.push(0); // fresh recruit always starts with a ready skill
     run.teamHp = Math.min(runTeamMaxHp(run), run.teamHp + character.maxHp);
     saveRunSnapshot(run);
     return;
   }
   const index = replaceIndex ?? run.team.length - 1;
   run.team[index] = character;
+  run.skillCooldowns[index] = 0; // replacing a member resets that slot's cooldown, not inherited
   run.teamHp = Math.min(runTeamMaxHp(run), run.teamHp);
   saveRunSnapshot(run);
 }

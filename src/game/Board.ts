@@ -155,6 +155,16 @@ export class Board {
     return picked;
   }
 
+  /** Unlocks every currently locked cell (e.g. a player "cleanse" skill). Returns the cells unlocked. */
+  clearAllLocks(): Vec2[] {
+    const cells = [...this.locked].map((key) => {
+      const [row, col] = key.split(',').map(Number);
+      return { row, col };
+    });
+    this.locked.clear();
+    return cells;
+  }
+
   /**
    * Petrifies up to `count` random non-empty, non-stone cells (enemy
    * "petrify" skill): the gem standing there is destroyed and the cell
@@ -261,6 +271,16 @@ export class Board {
       }
     }
     return burningBefore;
+  }
+
+  /** Extinguishes every currently burning cell (e.g. a player "cleanse" skill). Returns the cells extinguished. */
+  extinguishAllBurning(): Vec2[] {
+    const cells = [...this.burning.keys()].map((key) => {
+      const [row, col] = key.split(',').map(Number);
+      return { row, col };
+    });
+    this.burning.clear();
+    return cells;
   }
 
   /**

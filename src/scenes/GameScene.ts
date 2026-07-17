@@ -60,6 +60,7 @@ import { recordLevelClear, starsForLevel } from '../game/playerData';
 import { LEVELS } from '../game/levels';
 import { getLang, t, tr } from '../game/i18n';
 import type { UiKey } from '../game/i18n';
+import { carryCooldownsForward, takeCarriedCooldowns } from '../game/storyCooldowns';
 import { drawAvatar } from './avatarUi';
 import { drawLanguageToggle } from './langToggle';
 
@@ -215,6 +216,10 @@ export class GameScene extends Phaser.Scene {
         maxHp: runTeamMaxHp(run),
         startHp: run.teamHp,
       });
+      // Skill cooldowns persist across run-map nodes (see run.ts's
+      // recruit()/skillCooldowns) — without this every fresh node would
+      // hand back fully-ready skills, same bug as the story-mode restart.
+      this.battle.skillCooldowns = run.skillCooldowns.slice(0, run.team.length);
     } else {
       this.runMode = false;
       this.relicMods = null;
@@ -223,6 +228,11 @@ export class GameScene extends Phaser.Scene {
       this.battle = new BattleState(this.startLevelIndex, getActiveTeam(playerData), {
         rules: this.currentLevel?.rules,
       });
+      // Skill cooldowns persist across "Next Level ▶" within a branch chain
+      // (see storyCooldowns.ts); every other entry point (map click, retry
+      // after defeat) never wrote this, so it's null there — fresh cooldowns.
+      const carried = takeCarriedCooldowns();
+      if (carried) this.battle.skillCooldowns = carried.slice(0, this.battle.team.length);
     }
     this.enemySprite = new EnemySprite(this, this.scale.width / 2, ENEMY_SPRITE_Y);
     this.createHpBars();
@@ -587,10 +597,26 @@ export class GameScene extends Phaser.Scene {
       HP_BAR_HEIGHT,
     );
     this.playerHpText.setText(`${this.battle.playerHp} / ${this.battle.playerMaxHp}`);
+
+    const playerStatus: string[] = [];
     if (this.battle.poisonTurnsLeft > 0) {
-      this.playerStatusText.setText(
-        t('poisonStatus', { d: this.battle.poisonDamagePerTurn, t: this.battle.poisonTurnsLeft }),
+      playerStatus.push(t('poisonStatus', { d: this.battle.poisonDamagePerTurn, t: this.battle.poisonTurnsLeft }));
+    }
+    if (this.battle.playerShieldTurns > 0) {
+      playerStatus.push(
+        t('playerShieldStatus', {
+          p: Math.round(this.battle.playerShieldReduction * 100),
+          t: this.battle.playerShieldTurns,
+        }),
       );
+    }
+    if (this.battle.attackBuffTurns > 0) {
+      playerStatus.push(
+        t('attackBuffStatus', { m: this.battle.attackBuffMultiplier, t: this.battle.attackBuffTurns }),
+      );
+    }
+    if (playerStatus.length > 0) {
+      this.playerStatusText.setText(playerStatus.join('    '));
       this.playerStatusText.setVisible(true);
     } else {
       this.playerStatusText.setVisible(false);
@@ -647,6 +673,37 @@ export class GameScene extends Phaser.Scene {
       const caster = this.battle.team[memberIndex];
       this.enemySprite.hit(caster?.element ?? 0);
       this.spawnFloatingText(this.enemySprite.x, this.enemySprite.y - 44, `${result.amount}`, 0xffffff, 26);
+    } else if (result.effect === 'shieldSelf') {
+      this.spawnFloatingText(
+        this.playerHpBarX + HP_BAR_WIDTH / 2,
+        this.playerHpBarY - 24,
+        t('shieldUpFloat'),
+        0x7dd3fc,
+        18,
+      );
+    } else if (result.effect === 'teamBuff') {
+      this.spawnFloatingText(
+        this.scale.width / 2,
+        this.playerHpBarY - 24,
+        t('buffUpFloat'),
+        0xffe066,
+        18,
+      );
+    } else if (result.effect === 'stunEnemy') {
+      this.spawnFloatingText(this.enemySprite.x, this.enemySprite.y - 60, t('stunnedFloat'), 0x9aa3c7, 18);
+      this.refreshHpBars(); // the enemy's "ATK in N" countdown just jumped — show it immediately
+    } else if (result.effect === 'cleanse') {
+      const unlocked = this.board.clearAllLocks();
+      const extinguished = this.board.extinguishAllBurning();
+      if (unlocked.length > 0 || extinguished.length > 0) this.refreshCellStateVisuals();
+      this.spawnFloatingText(
+        this.playerHpBarX + HP_BAR_WIDTH / 2,
+        this.playerHpBarY - 24,
+        t('cleansedFloat'),
+        0x2ecc71,
+        18,
+      );
+      this.refreshHpBars(); // poison indicator just cleared
     }
 
     if (result.enemyDefeated) {
@@ -989,6 +1046,7 @@ export class GameScene extends Phaser.Scene {
       this.battle.team,
       this.battle.enemy.element,
       this.relicMods ?? undefined,
+      this.battle.attackBuffMultiplier,
     );
     const totalHeal = computeHealAmount(allGroups, combo, this.relicMods ?? undefined);
 
@@ -1368,7 +1426,10 @@ export class GameScene extends Phaser.Scene {
       if (nextLevelId) {
         buttons.push({
           label: t('nextLevel'),
-          onClick: () => this.scene.restart({ levelId: nextLevelId }),
+          onClick: () => {
+            carryCooldownsForward(this.battle.skillCooldowns);
+            this.scene.restart({ levelId: nextLevelId });
+          },
         });
       }
       buttons.push({ label: t('backToMap'), onClick: () => this.scene.start('LevelSelectScene') });
@@ -1403,6 +1464,7 @@ export class GameScene extends Phaser.Scene {
     const maxHp = runTeamMaxHp(run);
     const postBattleHeal = Math.round(maxHp * (this.relicMods?.postBattleHealFraction ?? 0));
     run.teamHp = Math.min(maxHp, this.battle.playerHp + postBattleHeal);
+    run.skillCooldowns = this.battle.skillCooldowns;
     recordVictory(run, node.type);
     persistRun(run);
 

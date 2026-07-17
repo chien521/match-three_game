@@ -214,6 +214,34 @@ describe('rest / relics / recruiting', () => {
     expect(run.team).toHaveLength(MAX_TEAM_SIZE);
     expect(run.team[0].id).toBe(replacement.id);
   });
+
+  it('createRun initializes skillCooldowns to all zeros, index-aligned with team', () => {
+    const run = createRun();
+    expect(run.skillCooldowns).toEqual(run.team.map(() => 0));
+  });
+
+  it('recruit (adding) appends a fresh 0 cooldown for the new member, leaving others untouched', () => {
+    const run = createRun();
+    run.skillCooldowns = run.skillCooldowns.map((_, i) => i + 1); // give everyone a distinct nonzero cooldown
+    const before = [...run.skillCooldowns];
+    const candidate = recruitChoices(run, 1)[0];
+
+    recruit(run, candidate);
+    expect(run.skillCooldowns).toEqual([...before, 0]);
+  });
+
+  it('recruit (replacing) resets only the replaced slot\'s cooldown', () => {
+    const run = createRun();
+    while (run.team.length < MAX_TEAM_SIZE) {
+      recruit(run, recruitChoices(run, 1)[0]);
+    }
+    run.skillCooldowns = run.skillCooldowns.map(() => 3);
+    const replacement = recruitChoices(run, 1)[0];
+
+    recruit(run, replacement, 1);
+    expect(run.skillCooldowns[1]).toBe(0);
+    expect(run.skillCooldowns.filter((_, i) => i !== 1).every((cd) => cd === 3)).toBe(true);
+  });
 });
 
 describe('generateEncounter', () => {
@@ -333,6 +361,36 @@ describe('run persistence (sessionStorage)', () => {
     // The recruited character is restored by id via findCharacterTemplate/DEFAULT_TEAM fallback.
     expect(restored!.team.map((c) => c.id)).toEqual(run.team.map((c) => c.id));
     expect(restored!.team.some((c) => c.id === candidate.id)).toBe(true);
+  });
+
+  it('saveRunSnapshot/loadRunSnapshot round-trips skillCooldowns', () => {
+    const run = createRun();
+    run.skillCooldowns = run.skillCooldowns.map((_, i) => i + 1);
+    saveRunSnapshot(run);
+
+    const restored = loadRunSnapshot();
+    expect(restored!.skillCooldowns).toEqual(run.skillCooldowns);
+  });
+
+  it('loadRunSnapshot fills in zeros for a legacy snapshot saved before skillCooldowns existed', () => {
+    const run = createRun();
+    const legacySnapshot = {
+      floor: run.floor,
+      map: run.map,
+      currentRow: run.currentRow,
+      currentNodeId: run.currentNodeId,
+      visitedNodeIds: run.visitedNodeIds,
+      teamIds: run.team.map((c) => c.id),
+      teamHp: run.teamHp,
+      // skillCooldowns intentionally omitted, simulating a pre-feature save
+      relicIds: [],
+      pendingReward: null,
+      stats: run.stats,
+    };
+    sessionStorage.setItem('match3-active-run', JSON.stringify(legacySnapshot));
+
+    const restored = loadRunSnapshot();
+    expect(restored!.skillCooldowns).toEqual(run.team.map(() => 0));
   });
 
   it('loadRunSnapshot returns null when nothing has been saved', () => {

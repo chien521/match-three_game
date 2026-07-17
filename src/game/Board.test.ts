@@ -124,6 +124,27 @@ describe('Board', () => {
     expect(board.locked.size).toBe(3);
   });
 
+  it('clearAllLocks unlocks every locked cell and reports them all', () => {
+    const board = new Board(4, 4);
+    board.fillRandomNoMatches();
+    const locked = board.lockRandomCells(3);
+    const cleared = board.clearAllLocks();
+    expect(cleared).toHaveLength(3);
+    expect(new Set(cleared.map((c) => `${c.row},${c.col}`))).toEqual(
+      new Set(locked.map((c) => `${c.row},${c.col}`)),
+    );
+    expect(board.locked.size).toBe(0);
+    for (const cell of locked) {
+      expect(board.isLocked(cell.row, cell.col)).toBe(false);
+    }
+  });
+
+  it('clearAllLocks on an already-unlocked board is a no-op returning an empty array', () => {
+    const board = new Board(3, 3);
+    board.fillRandomNoMatches();
+    expect(board.clearAllLocks()).toEqual([]);
+  });
+
   it('clearCells removes the lock from cleared cells', () => {
     const board = new Board(3, 3);
     board.fillRandomNoMatches();
@@ -415,6 +436,27 @@ describe('Board burning cells (ignite)', () => {
     board.clearCells(new Set(['1,1']));
 
     expect(board.isBurning(1, 1)).toBe(false);
+  });
+
+  it('extinguishAllBurning clears every burning cell and reports them all', () => {
+    const board = new Board(3, 3);
+    for (let r = 0; r < 3; r++) {
+      for (let c = 0; c < 3; c++) board.set(r, c, 0);
+    }
+    board.burning.set('0,0', 2);
+    board.burning.set('1,1', 4);
+
+    const cleared = board.extinguishAllBurning();
+    expect(new Set(cleared.map((c) => `${c.row},${c.col}`))).toEqual(new Set(['0,0', '1,1']));
+    expect(board.burning.size).toBe(0);
+    expect(board.isBurning(0, 0)).toBe(false);
+    expect(board.isBurning(1, 1)).toBe(false);
+  });
+
+  it('extinguishAllBurning on an unlit board is a no-op returning an empty array', () => {
+    const board = new Board(3, 3);
+    board.fillRandomNoMatches();
+    expect(board.extinguishAllBurning()).toEqual([]);
   });
 
   it('burning is fixed to the cell and does not move with gravity', () => {

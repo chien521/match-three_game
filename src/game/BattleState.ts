@@ -82,7 +82,11 @@ export type SkillResult =
   | { effect: 'damage'; amount: number; enemyDefeated: boolean }
   | { effect: 'heal'; amount: number; enemyDefeated: boolean }
   | { effect: 'convert'; from: number; to: number; enemyDefeated: boolean }
-  | { effect: 'extendTime'; bonusMs: number; enemyDefeated: boolean };
+  | { effect: 'extendTime'; bonusMs: number; enemyDefeated: boolean }
+  | { effect: 'shieldSelf'; turns: number; reduction: number; enemyDefeated: boolean }
+  | { effect: 'teamBuff'; multiplier: number; turns: number; enemyDefeated: boolean }
+  | { effect: 'stunEnemy'; turns: number; enemyDefeated: boolean }
+  | { effect: 'cleanse'; enemyDefeated: boolean };
 
 /**
  * Pure data model for the battle/level flow. No Phaser dependencies, so it
@@ -115,6 +119,20 @@ export class BattleState {
   /** Poison DoT currently affecting the player (0 = none). Doesn't stack — see tickEnemyTurn. */
   poisonDamagePerTurn = 0;
   poisonTurnsLeft = 0;
+
+  /** Player "shieldSelf" active-skill state: reduces incoming enemy attack
+   * damage by `playerShieldReduction` for the next `playerShieldTurns`
+   * attacks. Checked and ticked entirely inside applyEnemyAttack(), so it's
+   * self-contained regardless of call order elsewhere. */
+  playerShieldTurns = 0;
+  playerShieldReduction = 0;
+
+  /** Player "teamBuff" active-skill state: multiplies match damage by
+   * `attackBuffMultiplier` for the next `attackBuffTurns` player turns.
+   * Ticked in tickCooldowns() — safe because the current turn's damage is
+   * always computed before tickCooldowns() runs. */
+  attackBuffMultiplier = 1;
+  attackBuffTurns = 0;
 
   /** Completed player turns so far this battle (incremented once per tickEnemyTurn call). */
   turnCount = 0;
@@ -269,7 +287,18 @@ export class BattleState {
   applyEnemyAttack(multiplier = 1): boolean {
     const leaderElement = this.team[0]?.element ?? this.enemy.element;
     const elementMult = elementMultiplier(this.enemy.element, leaderElement);
-    return this.damagePlayer(Math.round(this.enemy.attack * elementMult * multiplier));
+    let amount = Math.round(this.enemy.attack * elementMult * multiplier);
+
+    // Self-contained shield check + consume: reduces this attack, then ticks
+    // down by one so a shield lasts for exactly the number of attacks it was
+    // cast for, independent of tickCooldowns() timing.
+    if (this.playerShieldTurns > 0) {
+      amount = Math.round(amount * (1 - this.playerShieldReduction));
+      this.playerShieldTurns--;
+      if (this.playerShieldTurns <= 0) this.playerShieldReduction = 0;
+    }
+
+    return this.damagePlayer(amount);
   }
 
   /** Restores player HP (e.g. from matched Heart orbs), capped at max. */
@@ -314,12 +343,44 @@ export class BattleState {
         };
       case 'extendTime':
         return { effect: 'extendTime', bonusMs: character.skillPower, enemyDefeated: false };
+      case 'shieldSelf':
+        this.playerShieldTurns = character.skillShieldTurns;
+        this.playerShieldReduction = character.skillShieldReduction;
+        return {
+          effect: 'shieldSelf',
+          turns: character.skillShieldTurns,
+          reduction: character.skillShieldReduction,
+          enemyDefeated: false,
+        };
+      case 'teamBuff':
+        this.attackBuffMultiplier = character.skillBuffMultiplier;
+        this.attackBuffTurns = character.skillBuffTurns;
+        return {
+          effect: 'teamBuff',
+          multiplier: character.skillBuffMultiplier,
+          turns: character.skillBuffTurns,
+          enemyDefeated: false,
+        };
+      case 'stunEnemy':
+        this.enemy.attackCountdown += character.skillStunTurns;
+        if (this.enemy.chargeTurns > 0) this.enemy.chargeCountdown += character.skillStunTurns;
+        return { effect: 'stunEnemy', turns: character.skillStunTurns, enemyDefeated: false };
+      case 'cleanse':
+        this.poisonTurnsLeft = 0;
+        this.poisonDamagePerTurn = 0;
+        return { effect: 'cleanse', enemyDefeated: false };
     }
   }
 
-  /** Ticks down all skill cooldowns by one turn. Call once per completed turn. */
+  /** Ticks down all skill cooldowns and the team-buff timer by one turn.
+   * Call once per completed turn. (playerShieldTurns is NOT ticked here —
+   * see applyEnemyAttack().) */
   tickCooldowns(): void {
     this.skillCooldowns = this.skillCooldowns.map((cd) => Math.max(0, cd - 1));
+    if (this.attackBuffTurns > 0) {
+      this.attackBuffTurns--;
+      if (this.attackBuffTurns <= 0) this.attackBuffMultiplier = 1;
+    }
   }
 
   /**

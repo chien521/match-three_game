@@ -74,14 +74,43 @@ const traceStar4: ShapeTracer = (g, cx, cy, r) => {
   g.closePath();
 };
 
-/** Crescent moon: outer arc plus a reversed inner arc from an offset circle. */
+/**
+ * Crescent moon: a "limb" circle with an equal-radius "shadow" circle offset
+ * to the left subtracted from it, leaving a clean lune. Built by sampling
+ * points along each arc (not Phaser's arc() sweep-direction flag) so the two
+ * curves are guaranteed to close exactly at the horn tips with no seam.
+ */
 const traceCrescent: ShapeTracer = (g, cx, cy, r) => {
-  const R = r * 0.98;
+  const R = r * 0.92;
+  const d = R * 0.78; // shadow-circle offset from the limb center; smaller = thinner crescent
+  const half = d / 2;
+  const h = Math.sqrt(Math.max(0, R * R - half * half));
+  const shadowCx = cx - d;
+
+  // Horn angle relative to each circle's own center (both have hypotenuse R
+  // by construction, since h and half satisfy R^2 = half^2 + h^2).
+  const limbTheta = Math.atan2(h, -half);
+  const shadowTheta = Math.atan2(h, half);
+  const SEGMENTS = 14;
+
   g.beginPath();
-  // Outer edge: sweep the long way around the left side.
-  g.arc(cx, cy, R, -Math.PI * 0.42, Math.PI * 0.42, false);
-  // Inner edge: carved by a circle offset to the upper-right.
-  g.arc(cx + R * 0.55, cy, R * 0.78, Math.PI * 0.55, -Math.PI * 0.55, true);
+  // Outer edge: the limb circle's far (right-bulging) arc, top horn to
+  // bottom horn through its rightmost point.
+  for (let i = 0; i <= SEGMENTS; i++) {
+    const angle = -limbTheta + (2 * limbTheta * i) / SEGMENTS;
+    const x = cx + Math.cos(angle) * R;
+    const y = cy + Math.sin(angle) * R;
+    if (i === 0) g.moveTo(x, y);
+    else g.lineTo(x, y);
+  }
+  // Inner edge: the shadow circle's near arc, swept back from the bottom
+  // horn to the top horn — carves the bite, closing the path exactly.
+  for (let i = 1; i <= SEGMENTS; i++) {
+    const angle = shadowTheta - (2 * shadowTheta * i) / SEGMENTS;
+    const x = shadowCx + Math.cos(angle) * R;
+    const y = cy + Math.sin(angle) * R;
+    g.lineTo(x, y);
+  }
   g.closePath();
 };
 

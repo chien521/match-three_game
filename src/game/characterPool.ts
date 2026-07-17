@@ -39,10 +39,9 @@ const GACHA_ONLY_CHARACTERS: Character[] = [
     element: 2,
     maxHp: 42,
     attack: 42,
-    skillName: 'Vine Whip',
-    skillCooldownTurns: 3,
-    skillEffect: 'damage',
-    skillPower: 55,
+    skillName: 'Cleansing Growth',
+    skillCooldownTurns: 4,
+    skillEffect: 'cleanse',
   },
   {
     id: 'chrono-imp',
