@@ -12,5 +12,11 @@ new Phaser.Game({
   width: 800,
   height: 800,
   backgroundColor: '#12141c',
+  scale: {
+    mode: Phaser.Scale.FIT,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+    width: 800,
+    height: 800,
+  },
   scene: [ChapterSelectScene, LevelSelectScene, GameScene, GachaScene, CollectionScene],
 });
