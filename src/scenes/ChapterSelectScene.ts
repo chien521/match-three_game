@@ -89,22 +89,33 @@ export class ChapterSelectScene extends Phaser.Scene {
       });
     });
 
-    this.drawGachaButton();
+    this.drawBottomNav();
     drawLanguageToggle(this, 20, 18, () => this.scene.restart());
   }
 
-  private drawGachaButton(): void {
-    const x = this.scale.width / 2;
+  private drawBottomNav(): void {
+    const labels: { text: string; scene: string }[] = [
+      { text: t('navGacha'), scene: 'GachaScene' },
+      { text: t('navCollection'), scene: 'CollectionScene' },
+    ];
+    const width = 170;
+    const gap = 12;
+    const totalWidth = width * labels.length + gap * (labels.length - 1);
+    const startX = this.scale.width / 2 - totalWidth / 2 + width / 2;
     const y = this.scale.height - 36;
-    const button = this.add
-      .rectangle(x, y, 170, 44, 0x2a2f45)
-      .setStrokeStyle(2, 0x394162)
-      .setInteractive({ useHandCursor: true });
-    this.add
-      .text(x, y, t('navGacha'), { fontSize: '16px', color: '#ffffff', fontStyle: 'bold' })
-      .setOrigin(0.5);
-    button.on('pointerover', () => button.setFillStyle(0x394162));
-    button.on('pointerout', () => button.setFillStyle(0x2a2f45));
-    button.on('pointerdown', () => this.scene.start('GachaScene'));
+
+    labels.forEach(({ text, scene }, index) => {
+      const x = startX + index * (width + gap);
+      const button = this.add
+        .rectangle(x, y, width, 44, 0x2a2f45)
+        .setStrokeStyle(2, 0x394162)
+        .setInteractive({ useHandCursor: true });
+      this.add
+        .text(x, y, text, { fontSize: '16px', color: '#ffffff', fontStyle: 'bold' })
+        .setOrigin(0.5);
+      button.on('pointerover', () => button.setFillStyle(0x394162));
+      button.on('pointerout', () => button.setFillStyle(0x2a2f45));
+      button.on('pointerdown', () => this.scene.start(scene));
+    });
   }
 }
