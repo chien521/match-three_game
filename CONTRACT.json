@@ -1,6 +1,6 @@
 {
   "build": { "required": true },
   "paths": { "publishSource": "dist" },
-  "app": { "appId": "", "createAppAllowed": true },
+  "app": { "appId": "tx984agg67", "createAppAllowed": true },
   "publishCommand": "viverse-cli app publish ./dist --app-id <APP_ID>"
 }

@@ -14,7 +14,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "autocommit": "node scripts/autocommit.mjs",
-    "publish:viverse": "npm run build && viverse-cli app publish ./dist --app-id $VIVERSE_APP_ID"
+    "publish:viverse": "npm run build && viverse-cli app publish ./dist --app-id %VIVERSE_APP_ID%"
   },
   "devDependencies": {
     "playwright-core": "^1.61.1",
