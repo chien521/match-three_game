@@ -211,6 +211,27 @@ export const UI = {
     zh: '延遲敵人下次攻擊 {turns} 回合。',
   },
   skillDescCleanse: { en: 'Cures poison.', zh: '解除中毒狀態。' },
+
+  // Per-level board rules (shown in the story intro / battle HUD)
+  listSeparator: { en: ', ', zh: '、' },
+  ruleTurnLimit: { en: '⏱ Clear within {n} turns', zh: '⏱ 需在 {n} 回合內過關' },
+  ruleGemColors: { en: '🎨 Only these gems appear: {colors}', zh: '🎨 盤面只會出現：{colors}' },
+  ruleMoveTime: { en: '⚡ Only {sec}s to move each turn', zh: '⚡ 每回合僅有 {sec} 秒可操作' },
+
+  // Board-rules legend (top-right "❓" button, every screen)
+  rulesLegendTitle: { en: 'Board Rules Glossary', zh: '盤面規則說明' },
+  rulesLegendTurnLimit: {
+    en: '⏱ Turn Limit — the level must be cleared within a set number of turns, or it ends in defeat.',
+    zh: '⏱ 回合限制——必須在指定回合數內過關，否則視為戰敗。',
+  },
+  rulesLegendGemColors: {
+    en: '🎨 Restricted Gems — only certain gem colors appear on the board for this level.',
+    zh: '🎨 限定符石——本關盤面只會出現特定顏色的符石。',
+  },
+  rulesLegendMoveTime: {
+    en: '⚡ Move Timer — each turn gives less (or more) time than usual to drag a gem before it locks in.',
+    zh: '⚡ 操作時間——本關每回合可拖曳符石的時間比預設更短（或更長）。',
+  },
 } satisfies Record<string, Entry>;
 
 export type UiKey = keyof typeof UI;

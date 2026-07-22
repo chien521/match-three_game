@@ -1,3 +1,7 @@
+import { HEART_TYPE } from './constants';
+import { elementName } from './team';
+import { t, tr } from './i18n';
+
 /**
  * Enemy interference skills (Tower of Saviors-style). All skills on one
  * enemy are independent and can coexist (e.g. shield + charge + ignite):
@@ -58,6 +62,43 @@ export interface LevelRules {
   gemColors?: number[];
   /** Overrides the drag/turn timer (ms) for this level. */
   moveTimeMs?: number;
+}
+
+/** Readable label for a gem type index, honoring the Heart orb's special name. */
+function gemTypeLabel(type: number): string {
+  return type === HEART_TYPE ? t('elementHeart') : tr(elementName(type));
+}
+
+/** Every active rule on this level as a full sentence (for the pre-battle story intro). */
+export function levelRuleLines(rules: LevelRules | undefined): string[] {
+  if (!rules) return [];
+  const lines: string[] = [];
+  if (rules.turnLimit !== undefined) {
+    lines.push(t('ruleTurnLimit', { n: rules.turnLimit }));
+  }
+  if (rules.gemColors !== undefined) {
+    lines.push(t('ruleGemColors', { colors: rules.gemColors.map(gemTypeLabel).join(t('listSeparator')) }));
+  }
+  if (rules.moveTimeMs !== undefined) {
+    lines.push(t('ruleMoveTime', { sec: Math.round((rules.moveTimeMs / 1000) * 10) / 10 }));
+  }
+  return lines;
+}
+
+/**
+ * The one rule line worth keeping visible for the whole battle that ISN'T
+ * already covered by the live turn counter (gemColors/moveTimeMs are static
+ * for the fight; turnLimit gets its own live "Turn c/l" display instead).
+ */
+export function staticLevelRuleLine(rules: LevelRules | undefined): string | undefined {
+  if (!rules) return undefined;
+  if (rules.gemColors !== undefined) {
+    return t('ruleGemColors', { colors: rules.gemColors.map(gemTypeLabel).join(t('listSeparator')) });
+  }
+  if (rules.moveTimeMs !== undefined) {
+    return t('ruleMoveTime', { sec: Math.round((rules.moveTimeMs / 1000) * 10) / 10 });
+  }
+  return undefined;
 }
 
 /** How a level's star rating (1-3) is computed on clear. */

@@ -8,7 +8,9 @@ import {
   chapterForLevel,
   isChapterFinale,
   levelById,
+  levelRuleLines,
   nextLevelIdInBranch,
+  staticLevelRuleLine,
 } from '../game/levels';
 import type { LevelConfig } from '../game/levels';
 import {
@@ -20,7 +22,13 @@ import {
   loadPlayerData,
   savePlayerData,
 } from '../game/playerData';
-import { computeGroupBaseDamage, computeHealAmount, computeMatchDamage, elementName } from '../game/team';
+import {
+  computeGroupBaseDamage,
+  computeHealAmount,
+  computeMatchDamage,
+  describeSkill,
+  elementName,
+} from '../game/team';
 import type { MatchGroup } from '../game/team';
 import {
   BOARD_COLS,
@@ -53,6 +61,7 @@ import type { UiKey } from '../game/i18n';
 import { carryCooldownsForward, takeCarriedCooldowns } from '../game/storyCooldowns';
 import { drawAvatar } from './avatarUi';
 import { drawLanguageToggle } from './langToggle';
+import { drawRulesLegendButton } from './rulesLegend';
 
 const HP_BAR_WIDTH = 320;
 const HP_BAR_HEIGHT = 18;
@@ -108,6 +117,7 @@ export class GameScene extends Phaser.Scene {
   private rosterTexts: Phaser.GameObjects.Text[] = [];
   private rosterButtons: Phaser.GameObjects.Rectangle[] = [];
   private rosterAvatars: Phaser.GameObjects.Container[] = [];
+  private skillTooltipObjects: Phaser.GameObjects.GameObject[] = [];
 
   private startLevelIndex = 0;
   /** Story level id being played. */
@@ -187,6 +197,7 @@ export class GameScene extends Phaser.Scene {
       })
       .setOrigin(1, 0);
     drawLanguageToggle(this, this.scale.width - 62, 8, () => this.refreshLanguage());
+    drawRulesLegendButton(this, this.scale.width - 70, 8);
 
     this.turnTimeMs = this.currentLevel?.rules?.moveTimeMs ?? TURN_TIME_MS;
     const playerData = loadPlayerData();
@@ -254,6 +265,23 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5, 0)
       .setDepth(201);
 
+    this.introObjects = [overlay, title, story];
+
+    const ruleLines = levelRuleLines(this.currentLevel?.rules);
+    if (ruleLines.length > 0) {
+      const rulesText = this.add
+        .text(this.scale.width / 2, this.scale.height / 2 + 62, ruleLines.join('\n'), {
+          fontSize: '14px',
+          color: '#ffe066',
+          align: 'center',
+          wordWrap: { width: this.scale.width - 160 },
+          lineSpacing: 6,
+        })
+        .setOrigin(0.5, 0)
+        .setDepth(201);
+      this.introObjects.push(rulesText);
+    }
+
     const button = this.add
       .rectangle(this.scale.width / 2, this.scale.height / 2 + 120, 220, 50, 0x2a2f45)
       .setStrokeStyle(2, 0x5a6cad)
@@ -268,7 +296,7 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(201);
 
-    this.introObjects = [overlay, title, story, button, buttonText];
+    this.introObjects.push(button, buttonText);
 
     button.on('pointerover', () => button.setFillStyle(0x394162));
     button.on('pointerout', () => button.setFillStyle(0x2a2f45));
@@ -440,7 +468,8 @@ export class GameScene extends Phaser.Scene {
 
       const button = this.add
         .rectangle(x, centerY, buttonWidth, buttonHeight, 0x2a2f45)
-        .setStrokeStyle(1, 0x394162);
+        .setStrokeStyle(1, 0x394162)
+        .setInteractive({ useHandCursor: true });
       this.rosterButtons.push(button);
 
       const avatar = drawAvatar(this, x - buttonWidth / 2 + 24, centerY, character, 15);
@@ -454,7 +483,15 @@ export class GameScene extends Phaser.Scene {
         })
         .setOrigin(0, 0.5);
 
-      button.on('pointerdown', () => this.useSkill(index));
+      // Right-click always shows the skill's effect text (even on cooldown);
+      // left-click activates it (BattleState.useSkill no-ops if on cooldown).
+      button.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+        if (pointer.rightButtonDown()) {
+          this.showSkillTooltip(index);
+        } else {
+          this.useSkill(index);
+        }
+      });
       return text;
     });
     this.refreshRoster();
@@ -540,7 +577,17 @@ export class GameScene extends Phaser.Scene {
       this.turnCounterText.setColor(remaining <= 3 ? '#ff5555' : '#9aa3c7');
       this.turnCounterText.setVisible(true);
     } else {
-      this.turnCounterText.setVisible(false);
+      // No turn limit on this level — if it restricts gem colors or the move
+      // timer instead, keep that reminder visible for the whole battle (the
+      // live turn counter would otherwise be the only rule ever shown here).
+      const ruleLine = staticLevelRuleLine(this.currentLevel?.rules);
+      if (ruleLine) {
+        this.turnCounterText.setText(ruleLine);
+        this.turnCounterText.setColor('#9aa3c7');
+        this.turnCounterText.setVisible(true);
+      } else {
+        this.turnCounterText.setVisible(false);
+      }
     }
 
     const playerRatio = this.battle.playerHp / this.battle.playerMaxHp;
@@ -605,17 +652,59 @@ export class GameScene extends Phaser.Scene {
       button.setFillStyle(ready ? 0x33406b : 0x1e2233);
       button.setStrokeStyle(1, ready ? 0x5a6cad : 0x2a2f45);
       this.rosterAvatars[index]?.setAlpha(ready ? 1 : 0.45);
-      if (ready) {
-        button.setInteractive({ useHandCursor: true });
-      } else {
-        button.disableInteractive();
-      }
+      // Stays interactive regardless of cooldown so a right-click can still
+      // open the skill tooltip; left-click on cooldown simply no-ops.
     });
+  }
+
+  /** Destroys any open skill tooltip. */
+  private closeSkillTooltip(): void {
+    for (const obj of this.skillTooltipObjects) obj.destroy();
+    this.skillTooltipObjects = [];
+  }
+
+  /** Right-click popup showing a roster member's skill name/cooldown/effect text, regardless of its current cooldown state. */
+  private showSkillTooltip(index: number): void {
+    this.closeSkillTooltip();
+    const character = this.battle.team[index];
+    const button = this.rosterButtons[index];
+    if (!character || !button) return;
+
+    const panelWidth = 240;
+    const bodyText = `${tr(character.skillName)} (${t('skillCooldownLabel', { n: character.skillCooldownTurns })})\n${describeSkill(character)}`;
+
+    const backdrop = this.add
+      .rectangle(this.scale.width / 2, this.scale.height / 2, this.scale.width, this.scale.height, 0x000000, 0.001)
+      .setDepth(460)
+      .setInteractive();
+    backdrop.on('pointerdown', () => this.closeSkillTooltip());
+    this.skillTooltipObjects.push(backdrop);
+
+    const text = this.add
+      .text(0, 0, bodyText, {
+        fontSize: '13px',
+        color: '#e6e8f0',
+        wordWrap: { width: panelWidth - 24 },
+        lineSpacing: 4,
+      })
+      .setDepth(462);
+    const panelHeight = text.height + 24;
+    const x = Phaser.Math.Clamp(button.x, panelWidth / 2 + 8, this.scale.width - panelWidth / 2 - 8);
+    const y = Math.max(panelHeight / 2 + 8, button.y - button.height / 2 - panelHeight / 2 - 10);
+
+    const panel = this.add
+      .rectangle(x, y, panelWidth, panelHeight, 0x1b1f2e, 0.97)
+      .setStrokeStyle(2, 0x5a6cad)
+      .setDepth(461);
+    text.setPosition(x - panelWidth / 2 + 12, y - panelHeight / 2 + 12);
+
+    this.skillTooltipObjects.push(panel, text);
   }
 
   /** Activates a team member's skill. Does not consume the player's turn. */
   private useSkill(memberIndex: number): void {
     if (this.gameEnded || this.resolving) return;
+    this.closeSkillTooltip();
     const result = this.battle.useSkill(memberIndex);
     if (!result) return;
 

@@ -8,6 +8,7 @@ import { t, tr } from '../game/i18n';
 import { lighten } from './gemArt';
 import { themeForBranch } from './battleFx';
 import { drawLanguageToggle } from './langToggle';
+import { drawRulesLegendButton } from './rulesLegend';
 
 const COLUMN_MARGIN = 120;
 
@@ -66,6 +67,7 @@ export class LevelSelectScene extends Phaser.Scene {
     this.drawMap();
     this.createTopNav();
     drawLanguageToggle(this, 20, 18, () => this.scene.restart());
+    drawRulesLegendButton(this, this.scale.width - 20, 54);
   }
 
   /** Which Y-array a branch uses: the chapter's first 'single' branch is the

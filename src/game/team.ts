@@ -1,4 +1,5 @@
 import { ELEMENT_NAMES, HEAL_PER_GEM, HEART_TYPE } from './constants';
+import { t, tr } from './i18n';
 
 export type SkillEffect = 'damage' | 'heal' | 'convert' | 'extendTime';
 export type Rarity = 'Common' | 'Rare' | 'SSR';
@@ -203,6 +204,40 @@ export function elementMultiplier(attackerElement: number, defenderElement: numb
   }
   if (ADVANTAGE[defenderElement] === attackerElement) return 0.5;
   return 1;
+}
+
+/** Turns a character's active-skill data into a readable sentence, in the current language. */
+export function describeSkill(character: Character): string {
+  switch (character.skillEffect) {
+    case 'damage':
+      return t('skillDescDamage', { power: character.skillPower });
+    case 'heal':
+      return t('skillDescHeal', { power: character.skillPower });
+    case 'convert': {
+      const label = (element: number) =>
+        element === HEART_TYPE ? t('elementHeart') : tr(elementName(element));
+      return t('skillDescConvert', {
+        from: label(character.skillConvertFrom),
+        to: label(character.skillConvertTo),
+      });
+    }
+    case 'extendTime':
+      return t('skillDescExtendTime', { sec: Math.round((character.skillPower / 1000) * 10) / 10 });
+    case 'shieldSelf':
+      return t('skillDescShieldSelf', {
+        pct: Math.round(character.skillShieldReduction * 100),
+        turns: character.skillShieldTurns,
+      });
+    case 'teamBuff':
+      return t('skillDescTeamBuff', {
+        mult: character.skillBuffMultiplier,
+        turns: character.skillBuffTurns,
+      });
+    case 'stunEnemy':
+      return t('skillDescStunEnemy', { turns: character.skillStunTurns });
+    case 'cleanse':
+      return t('skillDescCleanse');
+  }
 }
 
 export function elementName(element: number): string {

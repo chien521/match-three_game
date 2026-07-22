@@ -7,12 +7,12 @@ import {
   setActiveTeam,
 } from '../game/playerData';
 import type { Character } from '../game/team';
-import { elementName } from '../game/team';
-import { HEART_TYPE } from '../game/constants';
+import { describeSkill, elementName } from '../game/team';
 import { t, tr } from '../game/i18n';
 import { drawThemedBackground } from './battleFx';
 import { drawAvatar } from './avatarUi';
 import { drawLanguageToggle } from './langToggle';
+import { drawRulesLegendButton } from './rulesLegend';
 
 const RARITY_COLORS: Record<string, number> = {
   Common: 0x9aa3c7,
@@ -83,6 +83,7 @@ export class CollectionScene extends Phaser.Scene {
       savePlayerData(setActiveTeam(loadPlayerData(), this.activeTeamIds));
       this.scene.restart();
     });
+    drawRulesLegendButton(this, this.scale.width - 20, 68);
 
     const backButton = this.add
       .text(this.scale.width / 2, this.scale.height - 36, t('backToMenu'), {
@@ -264,40 +265,6 @@ export class CollectionScene extends Phaser.Scene {
     return true;
   }
 
-  /** Turns a character's active-skill data into a readable sentence. */
-  private describeSkill(character: Character): string {
-    switch (character.skillEffect) {
-      case 'damage':
-        return t('skillDescDamage', { power: character.skillPower });
-      case 'heal':
-        return t('skillDescHeal', { power: character.skillPower });
-      case 'convert': {
-        const label = (element: number) =>
-          element === HEART_TYPE ? t('elementHeart') : tr(elementName(element));
-        return t('skillDescConvert', {
-          from: label(character.skillConvertFrom),
-          to: label(character.skillConvertTo),
-        });
-      }
-      case 'extendTime':
-        return t('skillDescExtendTime', { sec: Math.round((character.skillPower / 1000) * 10) / 10 });
-      case 'shieldSelf':
-        return t('skillDescShieldSelf', {
-          pct: Math.round(character.skillShieldReduction * 100),
-          turns: character.skillShieldTurns,
-        });
-      case 'teamBuff':
-        return t('skillDescTeamBuff', {
-          mult: character.skillBuffMultiplier,
-          turns: character.skillBuffTurns,
-        });
-      case 'stunEnemy':
-        return t('skillDescStunEnemy', { turns: character.skillStunTurns });
-      case 'cleanse':
-        return t('skillDescCleanse');
-    }
-  }
-
   /** Destroys any open detail popup. */
   private closeDetail(): void {
     for (const obj of this.overlay) obj.destroy();
@@ -368,7 +335,7 @@ export class CollectionScene extends Phaser.Scene {
       .text(
         cx - panelWidth / 2 + 24,
         panelTop + 212,
-        `${tr(character.skillName)} (${t('skillCooldownLabel', { n: character.skillCooldownTurns })})\n${this.describeSkill(character)}`,
+        `${tr(character.skillName)} (${t('skillCooldownLabel', { n: character.skillCooldownTurns })})\n${describeSkill(character)}`,
         { fontSize: '13px', color: '#e6e8f0', wordWrap: { width: panelWidth - 48 }, lineSpacing: 4 },
       )
       .setOrigin(0, 0);

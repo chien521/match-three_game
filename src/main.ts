@@ -12,9 +12,10 @@ new Phaser.Game({
   width: 800,
   height: 800,
   backgroundColor: '#12141c',
+  disableContextMenu: true,
   scale: {
     mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH,
+    autoCenter: Phaser.Scale.NO_CENTER,
     width: 800,
     height: 800,
   },

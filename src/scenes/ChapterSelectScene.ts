@@ -4,6 +4,7 @@ import { isLevelUnlocked, loadPlayerData } from '../game/playerData';
 import { t, tr } from '../game/i18n';
 import { drawThemedBackground } from './battleFx';
 import { drawLanguageToggle } from './langToggle';
+import { drawRulesLegendButton } from './rulesLegend';
 
 /**
  * Chapter picker: the game's entry scene. Each chapter is its own
@@ -91,6 +92,7 @@ export class ChapterSelectScene extends Phaser.Scene {
 
     this.drawBottomNav();
     drawLanguageToggle(this, 20, 18, () => this.scene.restart());
+    drawRulesLegendButton(this, this.scale.width - 20, 54);
   }
 
   private drawBottomNav(): void {

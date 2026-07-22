@@ -7,6 +7,7 @@ import { t, tr } from '../game/i18n';
 import { drawThemedBackground } from './battleFx';
 import { drawAvatar } from './avatarUi';
 import { drawLanguageToggle } from './langToggle';
+import { drawRulesLegendButton } from './rulesLegend';
 
 const RARITY_COLORS: Record<string, number> = {
   Common: 0x9aa3c7,
@@ -84,6 +85,7 @@ export class GachaScene extends Phaser.Scene {
     // Restart is safe mid-reveal: pull results are written to playerData the
     // moment the button is pressed, before any card animation plays.
     drawLanguageToggle(this, 20, 18, () => this.scene.restart());
+    drawRulesLegendButton(this, this.scale.width - 20, 54);
 
     this.refreshCurrency();
   }
