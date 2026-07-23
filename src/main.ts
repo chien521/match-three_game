@@ -37,6 +37,25 @@ function createGame(): Phaser.Game {
     window.visualViewport.addEventListener('resize', resize);
   }
 
+  // Hosted embeds (e.g. the VIVERSE Worlds viewer) can resize the #app
+  // container - or overlay/remove their own chrome above or below it -
+  // without ever firing a window 'resize' event, since the browser's own
+  // viewport never changes size. Phaser's ScaleManager only re-measures
+  // the parent on those window-level events, so it can stay locked onto a
+  // stale, oversized reading (the game renders at native 800x800 instead
+  // of fitting the actual visible area) inside such wrappers. Watch the
+  // container directly, and retry for the first couple seconds in case
+  // the wrapper's own chrome (banners, toolbars) settles in asynchronously
+  // after our initial layout pass.
+  const appEl = document.getElementById('app');
+  if (appEl && typeof ResizeObserver !== 'undefined') {
+    const ro = new ResizeObserver(resize);
+    ro.observe(appEl);
+  }
+  for (const delay of [100, 300, 600, 1000, 2000]) {
+    window.setTimeout(resize, delay);
+  }
+
   return game;
 }
 
